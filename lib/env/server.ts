@@ -1,6 +1,8 @@
+import type { OpenAIModelId } from "@/types/openai";
+
 type ServerEnv = {
   openAiApiKey: string;
-  openAiModelDefault: string;
+  openAiModelDefault: OpenAIModelId;
   supabaseUrl: string;
   supabaseAnonKey: string;
   supabaseServiceRoleKey: string;
@@ -21,7 +23,9 @@ function getRequiredEnv(name: keyof NodeJS.ProcessEnv) {
 export function getServerEnv(): ServerEnv {
   return {
     openAiApiKey: getRequiredEnv("OPENAI_API_KEY"),
-    openAiModelDefault: process.env.OPENAI_MODEL_DEFAULT?.trim() || "gpt-5-mini",
+    openAiModelDefault:
+      (process.env.OPENAI_MODEL_DEFAULT?.trim() as OpenAIModelId | undefined) ||
+      "gpt-5-mini",
     supabaseUrl: getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
     supabaseAnonKey: getRequiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
     supabaseServiceRoleKey: getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY"),

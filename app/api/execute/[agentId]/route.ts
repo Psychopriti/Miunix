@@ -4,8 +4,12 @@ import { AgentExecutionError, executeAgent } from "@/ai/agent-runner";
 import { ensureProfileForUser } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase";
 
-export async function POST(request: Request) {
+export async function POST(
+  request: Request,
+  context: RouteContext<"/api/execute/[agentId]">,
+) {
   try {
+    const { agentId } = await context.params;
     const supabase = await createServerSupabaseClient();
     const userResult = await supabase.auth.getUser();
 
@@ -21,15 +25,11 @@ export async function POST(request: Request) {
 
     const profile = await ensureProfileForUser(userResult.data.user);
     const body = await request.json();
-    const agentId = typeof body.agentId === "string" ? body.agentId.trim() : "";
-    const agentSlug =
-      typeof body.agentSlug === "string" ? body.agentSlug.trim() : "";
     const input = typeof body.input === "string" ? body.input : "";
 
     const result = await executeAgent({
       profileId: profile.id,
-      agentId: agentId || undefined,
-      agentSlug: agentSlug || undefined,
+      agentId,
       input,
     });
 

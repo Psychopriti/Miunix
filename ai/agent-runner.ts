@@ -1,7 +1,7 @@
 import { buildLeadGenerationPrompt } from "@/ai/prompts/lead-generation";
 import { buildMarketingContentPrompt } from "@/ai/prompts/marketing-content";
 import { buildResearchPrompt } from "@/ai/prompts/research";
-import { openai } from "@/lib/openai";
+import { OPENAI_DEFAULT_MODEL, openai } from "@/lib/openai";
 import { supabaseAdmin } from "@/lib/supabase";
 
 import type { Database } from "@/types/database";
@@ -11,9 +11,34 @@ type AgentExecutionRow =
   Database["public"]["Tables"]["agent_executions"]["Row"];
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 
+export type AgentListItem = Pick<
+  AgentRow,
+  | "id"
+  | "name"
+  | "slug"
+  | "description"
+  | "short_description"
+  | "pricing_type"
+  | "price"
+  | "currency"
+  | "average_rating"
+  | "total_reviews"
+  | "total_runs"
+  | "cover_image_url"
+>;
+
 export type AgentRunnerInput = Pick<
   AgentRow,
-  "id" | "slug" | "name" | "owner_type" | "prompt_template"
+  | "id"
+  | "slug"
+  | "name"
+  | "owner_type"
+  | "owner_profile_id"
+  | "prompt_template"
+  | "is_active"
+  | "is_published"
+  | "status"
+  | "total_runs"
 >;
 
 export type ExecuteAgentInput = {
@@ -26,6 +51,7 @@ export type ExecuteAgentInput = {
 export type ExecuteAgentResult = {
   agent: AgentRow;
   execution: AgentExecutionRow;
+  output: string;
 };
 
 export class AgentExecutionError extends Error {
@@ -59,37 +85,25 @@ async function findAgent({
   agentId?: string;
   agentSlug?: string;
 }) {
+  if (!agentId && !agentSlug) {
+    throw new AgentExecutionError("agentId or agentSlug is required.", 400);
+  }
+
+  let query = supabaseAdmin.from("agents").select("*");
+
   if (agentId) {
-    const byIdResult = await supabaseAdmin
-      .from("agents")
-      .select("*")
-      .eq("id", agentId)
-      .maybeSingle();
-
-    if (byIdResult.error) {
-      throw new AgentExecutionError(byIdResult.error.message, 500);
-    }
-
-    if (byIdResult.data) {
-      return byIdResult.data;
-    }
+    query = query.eq("id", agentId);
+  } else if (agentSlug) {
+    query = query.eq("slug", agentSlug);
   }
 
-  if (agentSlug) {
-    const bySlugResult = await supabaseAdmin
-      .from("agents")
-      .select("*")
-      .eq("slug", agentSlug)
-      .maybeSingle();
+  const result = await query.maybeSingle();
 
-    if (bySlugResult.error) {
-      throw new AgentExecutionError(bySlugResult.error.message, 500);
-    }
-
-    return bySlugResult.data;
+  if (result.error) {
+    throw new AgentExecutionError(result.error.message, 500);
   }
 
-  return null;
+  return result.data;
 }
 
 function canExecuteAgent({
@@ -99,18 +113,23 @@ function canExecuteAgent({
   agent: AgentRow;
   profile: ProfileRow;
 }) {
-  if (!agent.is_active) {
+  if (!agent.is_active || agent.status === "archived") {
     return false;
   }
 
-  if (agent.is_published) {
-    return true;
+  if (agent.owner_type === "platform") {
+    return agent.status === "published" && agent.is_published;
   }
 
-  return (
-    agent.owner_type === "developer" &&
-    agent.owner_profile_id === profile.id
-  );
+  if (agent.owner_type === "developer") {
+    if (agent.owner_profile_id === profile.id) {
+      return true;
+    }
+
+    return agent.status === "published" && agent.is_published;
+  }
+
+  return false;
 }
 
 function resolvePrompt(agent: AgentRunnerInput, input: string) {
@@ -129,15 +148,43 @@ function resolvePrompt(agent: AgentRunnerInput, input: string) {
     }
   }
 
-  if (agent.owner_type === "developer") {
-    if (!agent.prompt_template) {
-      throw new Error("Developer agent is missing prompt_template");
-    }
-
-    return `${agent.prompt_template}\n\nUser input:\n${input}`;
+  if (!agent.prompt_template) {
+    throw new AgentExecutionError(
+      "Developer agent is missing prompt_template.",
+      500,
+    );
   }
 
-  throw new Error("Unsupported agent owner_type");
+  return `${agent.prompt_template}\n\nUser input:\n${input}`;
+}
+
+export async function listAgents() {
+  const result = await supabaseAdmin
+    .from("agents")
+    .select("*")
+    .eq("is_active", true)
+    .eq("is_published", true)
+    .eq("status", "published")
+    .order("name", { ascending: true });
+
+  if (result.error) {
+    throw new AgentExecutionError(result.error.message, 500);
+  }
+
+  return result.data.map((agent) => ({
+    id: agent.id,
+    name: agent.name,
+    slug: agent.slug,
+    description: agent.description,
+    short_description: agent.short_description,
+    pricing_type: agent.pricing_type,
+    price: agent.price,
+    currency: agent.currency,
+    average_rating: agent.average_rating,
+    total_reviews: agent.total_reviews,
+    total_runs: agent.total_runs,
+    cover_image_url: agent.cover_image_url,
+  })) satisfies AgentListItem[];
 }
 
 export async function runAgent(agent: AgentRunnerInput, input: string) {
@@ -150,7 +197,7 @@ export async function runAgent(agent: AgentRunnerInput, input: string) {
   const prompt = resolvePrompt(agent, normalizedInput);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: OPENAI_DEFAULT_MODEL,
     messages: [
       {
         role: "user",
@@ -209,6 +256,19 @@ async function updateExecution(
   return result.data;
 }
 
+async function incrementAgentRunCount(agent: AgentRow) {
+  const result = await supabaseAdmin
+    .from("agents")
+    .update({
+      total_runs: agent.total_runs + 1,
+    })
+    .eq("id", agent.id);
+
+  if (result.error) {
+    throw new AgentExecutionError(result.error.message, 500);
+  }
+}
+
 export async function executeAgent({
   profileId,
   agentId,
@@ -238,10 +298,6 @@ export async function executeAgent({
     throw new AgentExecutionError("Agent not found.", 404);
   }
 
-  if (!agent.is_active) {
-    throw new AgentExecutionError("Agent is not active.", 403);
-  }
-
   if (!canExecuteAgent({ agent, profile })) {
     throw new AgentExecutionError(
       "You do not have permission to execute this agent.",
@@ -256,19 +312,22 @@ export async function executeAgent({
   });
 
   try {
-    const outputText = await runAgent(agent, normalizedInput);
+    const output = await runAgent(agent, normalizedInput);
 
     const completedExecution = await updateExecution(execution.id, {
       status: "completed",
       output_data: {
-        text: outputText,
-        model: "gpt-4o-mini",
+        text: output,
+        model: OPENAI_DEFAULT_MODEL,
       },
     });
+
+    await incrementAgentRunCount(agent);
 
     return {
       agent,
       execution: completedExecution,
+      output,
     };
   } catch (error) {
     const message =
@@ -278,6 +337,7 @@ export async function executeAgent({
       status: "failed",
       output_data: {
         error: message,
+        model: OPENAI_DEFAULT_MODEL,
       },
     });
 

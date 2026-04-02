@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+
+import { AuthSessionControls } from "@/components/auth/auth-session-controls";
+import { getCurrentUser } from "@/lib/auth";
 
 const navItems = [
+  { label: "Dashboard", href: "/dashboard" },
   { label: "Marketplace", href: "/marketplace" },
   { label: "Precios", href: "#" },
   { label: "Developers", href: "#" },
@@ -13,7 +15,9 @@ type SiteHeaderProps = {
   currentPath?: string;
 };
 
-export function SiteHeader({ currentPath }: SiteHeaderProps) {
+export async function SiteHeader({ currentPath }: SiteHeaderProps) {
+  const user = await getCurrentUser();
+
   return (
     <header className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
       <Link
@@ -46,15 +50,7 @@ export function SiteHeader({ currentPath }: SiteHeaderProps) {
         </div>
       </nav>
 
-      <Button
-        asChild
-        className="h-auto rounded-full border-0 bg-[#8f90ff] px-5 py-3 text-[0.76rem] font-medium text-white shadow-[0_12px_30px_rgba(143,144,255,0.35)] hover:bg-[#a0a1ff]"
-      >
-        <a href="#explorar">
-          Explorar Agentes
-          <ArrowRight className="size-4" />
-        </a>
-      </Button>
+      <AuthSessionControls isAuthenticated={Boolean(user)} />
     </header>
   );
 }

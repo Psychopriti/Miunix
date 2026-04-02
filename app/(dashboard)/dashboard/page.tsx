@@ -19,7 +19,7 @@ export default async function DashboardPage() {
   const user = userResult.user;
 
   if (!user) {
-    redirect("/auth");
+    redirect("/login");
   }
 
   const profile = await ensureProfileForUser(user);

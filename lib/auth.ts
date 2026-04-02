@@ -5,16 +5,19 @@ import { createServerSupabaseClient, supabaseAdmin } from "@/lib/supabase";
 import type { Database } from "@/types/database";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+type ProfileRole = Database["public"]["Enums"]["profile_role"];
 
 type UpsertProfileInput = {
   email: string | null;
   fullName: string | null;
+  role: ProfileRole;
   userId: string;
 };
 
 async function upsertProfile({
   email,
   fullName,
+  role,
   userId,
 }: UpsertProfileInput): Promise<ProfileRow> {
   const byUserId = await supabaseAdmin
@@ -59,11 +62,12 @@ async function upsertProfile({
     if (byEmail.data) {
       const updated = await supabaseAdmin
         .from("profiles")
-        .update({
-          user_id: userId,
-          email,
-          full_name: fullName,
-        })
+      .update({
+        user_id: userId,
+        email,
+        full_name: fullName,
+        role: byEmail.data.role ?? role,
+      })
         .eq("id", byEmail.data.id)
         .select("*")
         .single();
@@ -82,7 +86,7 @@ async function upsertProfile({
       user_id: userId,
       email,
       full_name: fullName,
-      role: "user",
+      role,
     })
     .select("*")
     .single();
@@ -102,6 +106,11 @@ export async function ensureProfileForUser(user: User) {
       typeof user.user_metadata?.full_name === "string"
         ? user.user_metadata.full_name
         : null,
+    role:
+      user.user_metadata?.role === "developer" ||
+      user.user_metadata?.role === "admin"
+        ? user.user_metadata.role
+        : "user",
   });
 }
 

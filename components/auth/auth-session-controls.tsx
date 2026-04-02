@@ -37,7 +37,7 @@ export function AuthSessionControls({
       asChild
       className="h-auto rounded-full border-0 bg-[#8f90ff] px-5 py-3 text-[0.76rem] font-medium text-white shadow-[0_12px_30px_rgba(143,144,255,0.35)] hover:bg-[#a0a1ff]"
     >
-      <Link href="/auth">Iniciar sesion</Link>
+      <Link href="/login">Iniciar sesion</Link>
     </Button>
   );
 }

@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 
-import { getServerEnv } from "@/lib/env/server";
+import { getOpenAiEnv } from "@/lib/env/server";
 
-const serverEnv = getServerEnv();
+const serverEnv = getOpenAiEnv();
 
 export const openai = new OpenAI({
   apiKey: serverEnv.openAiApiKey,

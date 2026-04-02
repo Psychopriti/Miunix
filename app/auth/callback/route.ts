@@ -9,7 +9,9 @@ export async function GET(request: Request) {
   const next = requestUrl.searchParams.get("next") ?? "/dashboard";
 
   if (!code) {
-    return NextResponse.redirect(new URL("/auth?message=Codigo invalido.", request.url));
+    return NextResponse.redirect(
+      new URL("/login?message=Codigo invalido.", request.url),
+    );
   }
 
   const supabase = await createServerSupabaseClient();
@@ -17,7 +19,10 @@ export async function GET(request: Request) {
 
   if (exchangeResult.error) {
     return NextResponse.redirect(
-      new URL(`/auth?message=${encodeURIComponent(exchangeResult.error.message)}`, request.url),
+      new URL(
+        `/login?message=${encodeURIComponent(exchangeResult.error.message)}`,
+        request.url,
+      ),
     );
   }
 

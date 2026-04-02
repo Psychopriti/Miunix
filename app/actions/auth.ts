@@ -5,9 +5,16 @@ import { redirect } from "next/navigation";
 
 import { ensureProfileForUser } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase";
+import type { Database } from "@/types/database";
+
+type ProfileRole = Database["public"]["Enums"]["profile_role"];
 
 function buildMessageRedirect(path: string, message: string) {
   return `${path}?message=${encodeURIComponent(message)}`;
+}
+
+function normalizeRole(value: FormDataEntryValue | null): ProfileRole {
+  return value === "developer" ? "developer" : "user";
 }
 
 async function getOrigin() {
@@ -29,13 +36,17 @@ export async function signInAction(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const supabase = await createServerSupabaseClient();
 
+  if (!email || !password) {
+    redirect(buildMessageRedirect("/login", "Email y password son requeridos."));
+  }
+
   const result = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (result.error) {
-    redirect(buildMessageRedirect("/auth", result.error.message));
+    redirect(buildMessageRedirect("/login", result.error.message));
   }
 
   if (result.data.user) {
@@ -49,8 +60,18 @@ export async function signUpAction(formData: FormData) {
   const fullName = String(formData.get("fullName") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const role = normalizeRole(formData.get("role"));
   const origin = await getOrigin();
   const supabase = await createServerSupabaseClient();
+
+  if (!fullName || !email || !password) {
+    redirect(
+      buildMessageRedirect(
+        "/register",
+        "Nombre, email y password son requeridos.",
+      ),
+    );
+  }
 
   const result = await supabase.auth.signUp({
     email,
@@ -58,13 +79,14 @@ export async function signUpAction(formData: FormData) {
     options: {
       data: {
         full_name: fullName,
+        role,
       },
       emailRedirectTo: `${origin}/auth/callback?next=/dashboard`,
     },
   });
 
   if (result.error) {
-    redirect(buildMessageRedirect("/auth", result.error.message));
+    redirect(buildMessageRedirect("/register", result.error.message));
   }
 
   if (result.data.user && result.data.session) {
@@ -74,7 +96,7 @@ export async function signUpAction(formData: FormData) {
 
   redirect(
     buildMessageRedirect(
-      "/auth",
+      "/login",
       "Te enviamos un correo de confirmacion para activar tu cuenta.",
     ),
   );
@@ -83,5 +105,5 @@ export async function signUpAction(formData: FormData) {
 export async function signOutAction() {
   const supabase = await createServerSupabaseClient();
   await supabase.auth.signOut();
-  redirect("/auth");
+  redirect("/login");
 }

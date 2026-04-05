@@ -5,6 +5,7 @@ import { OPENAI_DEFAULT_MODEL, openai } from "@/lib/openai";
 import { supabaseAdmin } from "@/lib/supabase";
 
 import type { Database } from "@/types/database";
+import type { Json } from "@/types/database";
 
 type AgentRow = Database["public"]["Tables"]["agents"]["Row"];
 type AgentExecutionRow =
@@ -54,6 +55,17 @@ export type ExecuteAgentResult = {
   output: string;
 };
 
+export type ExecutionHistoryItem = {
+  id: string;
+  agentId: string;
+  agentSlug: string;
+  agentName: string;
+  createdAt: string;
+  status: AgentExecutionRow["status"];
+  input: string;
+  output: string | null;
+};
+
 export class AgentExecutionError extends Error {
   constructor(
     message: string,
@@ -76,6 +88,24 @@ async function findProfile(profileId: string) {
   }
 
   return result.data;
+}
+
+async function findPurchasedAgentIds(profileId: string) {
+  const result = await supabaseAdmin
+    .from("agent_purchases")
+    .select("agent_id")
+    .eq("buyer_profile_id", profileId)
+    .eq("payment_status", "completed");
+
+  if (result.error) {
+    throw new AgentExecutionError(result.error.message, 500);
+  }
+
+  return new Set(result.data.map((purchase) => purchase.agent_id));
+}
+
+export async function listOwnedAgentIds(profileId: string) {
+  return findPurchasedAgentIds(profileId);
 }
 
 async function findAgent({
@@ -109,16 +139,20 @@ async function findAgent({
 function canExecuteAgent({
   agent,
   profile,
+  purchasedAgentIds,
 }: {
   agent: AgentRow;
   profile: ProfileRow;
+  purchasedAgentIds: Set<string>;
 }) {
   if (!agent.is_active || agent.status === "archived") {
     return false;
   }
 
+  const ownsAccess = purchasedAgentIds.has(agent.id);
+
   if (agent.owner_type === "platform") {
-    return agent.status === "published" && agent.is_published;
+    return agent.status === "published" && agent.is_published && ownsAccess;
   }
 
   if (agent.owner_type === "developer") {
@@ -126,7 +160,7 @@ function canExecuteAgent({
       return true;
     }
 
-    return agent.status === "published" && agent.is_published;
+    return agent.status === "published" && agent.is_published && ownsAccess;
   }
 
   return false;
@@ -158,6 +192,18 @@ function resolvePrompt(agent: AgentRunnerInput, input: string) {
   return `${agent.prompt_template}\n\nUser input:\n${input}`;
 }
 
+function readJsonTextValue(
+  value: Json | null | undefined,
+  key: "input" | "text" | "error",
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const candidate = value[key];
+  return typeof candidate === "string" ? candidate : null;
+}
+
 export async function listAgents() {
   const result = await supabaseAdmin
     .from("agents")
@@ -185,6 +231,166 @@ export async function listAgents() {
     total_runs: agent.total_runs,
     cover_image_url: agent.cover_image_url,
   })) satisfies AgentListItem[];
+}
+
+export async function listAccessibleAgents(profileId: string) {
+  const purchasedAgentIds = await findPurchasedAgentIds(profileId);
+
+  if (purchasedAgentIds.size === 0) {
+    return [] satisfies AgentListItem[];
+  }
+
+  const result = await supabaseAdmin
+    .from("agents")
+    .select("*")
+    .in("id", Array.from(purchasedAgentIds))
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  if (result.error) {
+    throw new AgentExecutionError(result.error.message, 500);
+  }
+
+  return result.data
+    .filter((agent) => agent.status !== "archived")
+    .map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      slug: agent.slug,
+      description: agent.description,
+      short_description: agent.short_description,
+      pricing_type: agent.pricing_type,
+      price: agent.price,
+      currency: agent.currency,
+      average_rating: agent.average_rating,
+      total_reviews: agent.total_reviews,
+      total_runs: agent.total_runs,
+      cover_image_url: agent.cover_image_url,
+    })) satisfies AgentListItem[];
+}
+
+export async function getPublishedAgentBySlug(slug: string) {
+  const agent = await findAgent({ agentSlug: slug });
+
+  if (!agent) {
+    return null;
+  }
+
+  if (!agent.is_active || !agent.is_published || agent.status !== "published") {
+    return null;
+  }
+
+  return agent;
+}
+
+export async function purchaseAgentAccess({
+  profileId,
+  agentId,
+  agentSlug,
+}: {
+  profileId: string;
+  agentId?: string;
+  agentSlug?: string;
+}) {
+  const [profile, agent, purchasedAgentIds] = await Promise.all([
+    findProfile(profileId),
+    findAgent({ agentId, agentSlug }),
+    findPurchasedAgentIds(profileId),
+  ]);
+
+  if (!profile) {
+    throw new AgentExecutionError("Profile not found.", 404);
+  }
+
+  if (!agent) {
+    throw new AgentExecutionError("Agent not found.", 404);
+  }
+
+  if (!agent.is_active || !agent.is_published || agent.status !== "published") {
+    throw new AgentExecutionError("Agent is not available for purchase.", 400);
+  }
+
+  if (purchasedAgentIds.has(agent.id)) {
+    return {
+      alreadyOwned: true,
+      agent,
+    };
+  }
+
+  const purchaseResult = await supabaseAdmin.from("agent_purchases").insert({
+    buyer_profile_id: profile.id,
+    agent_id: agent.id,
+    purchase_price: agent.price,
+    currency: agent.currency,
+    payment_status: "completed",
+  });
+
+  if (purchaseResult.error) {
+    throw new AgentExecutionError(purchaseResult.error.message, 500);
+  }
+
+  return {
+    alreadyOwned: false,
+    agent,
+  };
+}
+
+export async function listExecutionHistory(profileId: string) {
+  const executionsResult = await supabaseAdmin
+    .from("agent_executions")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("created_at", { ascending: true });
+
+  if (executionsResult.error) {
+    throw new AgentExecutionError(executionsResult.error.message, 500);
+  }
+
+  const agentIds = Array.from(
+    new Set(executionsResult.data.map((execution) => execution.agent_id)),
+  );
+
+  if (agentIds.length === 0) {
+    return [] satisfies ExecutionHistoryItem[];
+  }
+
+  const agentsResult = await supabaseAdmin
+    .from("agents")
+    .select("id, slug, name")
+    .in("id", agentIds);
+
+  if (agentsResult.error) {
+    throw new AgentExecutionError(agentsResult.error.message, 500);
+  }
+
+  const agentsById = new Map(
+    agentsResult.data.map((agent) => [agent.id, agent] as const),
+  );
+
+  return executionsResult.data.flatMap((execution) => {
+    const agent = agentsById.get(execution.agent_id);
+
+    if (!agent) {
+      return [];
+    }
+
+    const output =
+      readJsonTextValue(execution.output_data, "text") ??
+      readJsonTextValue(execution.output_data, "error");
+
+    return [
+      {
+        id: execution.id,
+        agentId: execution.agent_id,
+        agentSlug: agent.slug,
+        agentName: agent.name,
+        createdAt: execution.created_at,
+        status: execution.status,
+        input: readJsonTextValue(execution.input_data, "input") ?? "",
+        output,
+      },
+    ] satisfies ExecutionHistoryItem[];
+  });
 }
 
 export async function runAgent(agent: AgentRunnerInput, input: string) {
@@ -298,7 +504,9 @@ export async function executeAgent({
     throw new AgentExecutionError("Agent not found.", 404);
   }
 
-  if (!canExecuteAgent({ agent, profile })) {
+  const purchasedAgentIds = await findPurchasedAgentIds(profile.id);
+
+  if (!canExecuteAgent({ agent, profile, purchasedAgentIds })) {
     throw new AgentExecutionError(
       "You do not have permission to execute this agent.",
       403,

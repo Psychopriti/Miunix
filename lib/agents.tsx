@@ -19,14 +19,14 @@ export type AgentEntry = {
 
 export const featuredAgents: AgentEntry[] = [
   {
-    slug: "investigador-industria",
-    title: "Investigador de Industria",
+    slug: "lead-generation",
+    title: "Lead Generation",
     shortDescription:
-      "Nuevo cliente, nuevo mercado, nuevo lanzamiento? Obtenga una vision informativa completa sobre el mercado en menos de 2 minutos.",
+      "Encuentra prospectos, pain points y angulos de outreach listos para activar desde el primer mensaje.",
     heroDescription:
-      "Investiga tu industria a nivel local e internacional en un informe claro y estructurado para que puedas participar en cualquier conversacion completamente informado.",
-    priceLabel: "Suscripcion por $10/mes",
-    conversationsLabel: "3 conversaciones diarias",
+      "Convierte una idea de negocio o un nicho en una lista clara de oportunidades comerciales con audiencias, dolores, ganchos y siguientes pasos.",
+    priceLabel: "Acceso inmediato gratis",
+    conversationsLabel: "Ideal para ventas y growth",
     icon: (
       <div className="relative h-10 w-10">
         <div className="absolute left-0 top-1 h-8 w-4 bg-[linear-gradient(180deg,#3bc7dd,#173580)]" />
@@ -36,34 +36,34 @@ export const featuredAgents: AgentEntry[] = [
     ),
     benefits: [
       {
-        icon: "ϟ",
-        title: "Un informe completo del mercado en menos de 2 minutos.",
+        icon: "◎",
+        title: "Prospectos mas claros desde el inicio.",
         description:
-          "Investiga tu industria a nivel local e internacional en un informe claro y estructurado para que puedas participar en cualquier conversacion completamente informado.",
+          "Aterriza perfiles de cliente, segmentos y criterios de priorizacion para no salir a vender a ciegas.",
       },
       {
-        icon: "◌",
-        title: "Datos siempre actualizados, nunca obsoletos.",
+        icon: "↗",
+        title: "Mensajes con mejor enfoque.",
         description:
-          "Cada informe se genera a partir de fuentes actuales en el momento de su ejecucion. No recibis un resumen desactualizado ni repetido, sino un relevamiento en sintonia con la industria.",
+          "Propone pain points, promesas y hooks de outreach alineados al tipo de negocio que quieres atacar.",
       },
       {
-        icon: "⬡",
-        title: "Personalizado para tu negocio.",
+        icon: "□",
+        title: "Siguientes pasos accionables.",
         description:
-          "Anade los datos de tu negocio una sola vez y cada informe incluira un seccion de implicaciones para tu negocio que relaciona los resultados del mercado con tus canales especificos: tu producto, tu cliente, tus competidores.",
+          "Entrega ideas concretas de investigacion, contacto o seguimiento para convertir el analisis en pipeline.",
       },
     ],
   },
   {
-    slug: "content-creation",
-    title: "Content Creation",
+    slug: "marketing-content",
+    title: "Marketing Content",
     shortDescription:
-      "Crea campanas publicitarias listas para ser lanzadas que intentan tu marca a la perfeccion.",
+      "Genera copys, conceptos y piezas base para lanzar contenido y campanas mas rapido.",
     heroDescription:
-      "Genera conceptos, copys y variaciones visuales para tus campanas en cuestion de minutos con una voz alineada a tu marca.",
-    priceLabel: "Suscripcion por $12/mes",
-    conversationsLabel: "5 conversaciones diarias",
+      "Pasa de un brief corto a una propuesta de contenido con mensajes, angulos y variaciones listas para iterar con tu equipo.",
+    priceLabel: "Acceso inmediato gratis",
+    conversationsLabel: "Ideal para marketing y contenido",
     icon: (
       <div className="relative h-10 w-10">
         <div className="absolute inset-x-1 top-1 h-4 rotate-[1deg] bg-[linear-gradient(180deg,#f3dd8c,#689a84)] [clip-path:polygon(50%_0%,100%_52%,50%_100%,0%_52%)]" />
@@ -74,33 +74,33 @@ export const featuredAgents: AgentEntry[] = [
     benefits: [
       {
         icon: "✎",
-        title: "Campanas listas para activar.",
+        title: "Copy inicial en minutos.",
         description:
-          "Recibe una estructura completa de campana con concepto, titulares, copies y llamadas a la accion listas para probar.",
+          "Te da una base para anuncios, emails o redes sin esperar una ronda completa de brainstorming.",
       },
       {
-        icon: "◎",
-        title: "Coherencia total con la marca.",
+        icon: "◉",
+        title: "Variaciones para probar rapido.",
         description:
-          "El agente aprende tu tono, posicionamiento y referencias para proponer piezas consistentes en todos los canales.",
+          "Produce diferentes enfoques de mensaje para testear sin rehacer el brief desde cero.",
       },
       {
         icon: "▣",
-        title: "Iteracion rapida para tu equipo.",
+        title: "Mayor consistencia de marca.",
         description:
-          "Pide variaciones, adapta mensajes por audiencia y genera nuevas versiones sin reiniciar el briefing cada vez.",
+          "Ayuda a mantener tono y enfoque cuando varias personas del equipo crean contenido.",
       },
     ],
   },
   {
-    slug: "investigador-tendencias",
-    title: "Investigador de Tendencias",
+    slug: "research",
+    title: "Research",
     shortDescription:
-      "Que tendencias dominan la industria esta semana? Obten los resultados semanales gracias a analisis exhaustivos sin un solo clic.",
+      "Resume un tema, competidores o tendencias en una salida accionable para tomar decisiones mas rapido.",
     heroDescription:
-      "Detecta senales, movimientos de categoria y nuevos comportamientos antes de que se vuelvan obvios para el resto del mercado.",
-    priceLabel: "Suscripcion por $14/mes",
-    conversationsLabel: "4 conversaciones diarias",
+      "Transforma preguntas abiertas en un resumen util con hallazgos, contexto y recomendaciones para negocio, producto o marketing.",
+    priceLabel: "Acceso inmediato gratis",
+    conversationsLabel: "Ideal para estrategia y analisis",
     icon: (
       <div className="relative h-10 w-10">
         <div className="absolute left-2 top-0 h-6 w-6 rotate-45 border border-white/80" />
@@ -110,22 +110,22 @@ export const featuredAgents: AgentEntry[] = [
     ),
     benefits: [
       {
-        icon: "↗",
-        title: "Senales tempranas en tu categoria.",
+        icon: "◇",
+        title: "Panorama mas rapido.",
         description:
-          "Analiza conversaciones, cambios de oferta y patrones de consumo para detectar oportunidades antes que tu competencia.",
+          "Organiza informacion dispersa para que puedas entender un tema o mercado con menos friccion.",
       },
       {
-        icon: "◍",
-        title: "Panorama semanal resumido.",
+        icon: "↺",
+        title: "Hallazgos listos para compartir.",
         description:
-          "Recibe hallazgos accionables con foco en lo que realmente cambia la toma de decisiones, sin ruido innecesario.",
+          "Devuelve una salida mas estructurada para usarla en reuniones, decisiones o documentos internos.",
       },
       {
         icon: "▢",
-        title: "Recomendaciones listas para actuar.",
+        title: "Menos tiempo en tareas repetitivas.",
         description:
-          "Cada reporte termina con ideas concretas para contenido, producto o growth segun lo que este ocurriendo en el mercado.",
+          "Reduce el trabajo manual cuando necesitas investigar varios temas o competidores seguidos.",
       },
     ],
   },

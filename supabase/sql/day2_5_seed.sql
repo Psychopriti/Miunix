@@ -112,3 +112,28 @@ set
   average_rating = excluded.average_rating,
   total_reviews = excluded.total_reviews,
   total_runs = excluded.total_runs;
+
+insert into public.agent_purchases (
+  buyer_profile_id,
+  agent_id,
+  purchase_price,
+  currency,
+  payment_status
+)
+select
+  profile.id,
+  agent.id,
+  0,
+  'USD',
+  'completed'
+from public.profiles profile
+cross join public.agents agent
+where profile.email = 'juan.dev@test.com'
+  and agent.slug in ('lead-generation', 'marketing-content', 'research')
+  and not exists (
+    select 1
+    from public.agent_purchases purchase
+    where purchase.buyer_profile_id = profile.id
+      and purchase.agent_id = agent.id
+      and purchase.payment_status = 'completed'
+  );

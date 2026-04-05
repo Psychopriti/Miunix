@@ -1,33 +1,53 @@
-/**
- * DashboardPage — Página principal del dashboard de Agent Flow.
- *
- * Responsabilidades del Server Component:
- *  1. Verificar sesión activa; redirige a /login si no hay usuario.
- *  2. Obtener la lista de agentes instalados (estáticos en esta versión).
- *  3. Pasar datos al DashboardClient (Client Component) para la UI interactiva.
- *
- * Ruta: /dashboard  → app/(dashboard)/dashboard/page.tsx
- */
-
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
+import { listAccessibleAgents, listExecutionHistory } from "@/ai/agent-runner";
+import { ensureProfileForUser } from "@/lib/auth";
+import type {
+  DashboardAgent,
+  DashboardChatHistory,
+} from "@/lib/dashboard";
 import { createServerSupabaseClient } from "@/lib/supabase";
-import { featuredAgents } from "@/lib/agents";
-import { DashboardClient } from "./_components/dashboard-client";
 
-/* ── Metadata de la página ──────────────────────────────────────────────── */
+import { DashboardClient } from "./_components/dashboard-client";
 
 export const metadata: Metadata = {
   title: "Dashboard",
-  description:
-    "Gestiona y conversa con tus agentes de IA instalados en Agent Flow.",
+  description: "Ejecuta tus agentes y revisa los resultados guardados.",
 };
 
-/* ── Página ─────────────────────────────────────────────────────────────── */
+function buildChatHistory(
+  executions: Awaited<ReturnType<typeof listExecutionHistory>>,
+) {
+  return executions.reduce<DashboardChatHistory>((history, execution) => {
+    const nextMessages = [...(history[execution.agentSlug] ?? [])];
+
+    if (execution.input) {
+      nextMessages.push({
+        id: `${execution.id}-input`,
+        role: "user",
+        content: execution.input,
+        timestamp: execution.createdAt,
+        executionStatus: execution.status,
+      });
+    }
+
+    if (execution.output) {
+      nextMessages.push({
+        id: `${execution.id}-output`,
+        role: "assistant",
+        content: execution.output,
+        timestamp: execution.createdAt,
+        executionStatus: execution.status,
+      });
+    }
+
+    history[execution.agentSlug] = nextMessages;
+    return history;
+  }, {});
+}
 
 export default async function DashboardPage() {
-  /* 1. Verificar sesión */
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -37,14 +57,26 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  /*
-   * 2. Agentes disponibles.
-   *    En esta versión se usan los agentes estáticos de lib/agents.tsx.
-   *    En el futuro se podrá consultar la tabla `user_agents` de Supabase
-   *    para filtrar únicamente los que el usuario tiene suscritos.
-   */
-  const agents = featuredAgents;
+  const profile = await ensureProfileForUser(user);
+  const [agents, executionHistory] = await Promise.all([
+    listAccessibleAgents(profile.id),
+    listExecutionHistory(profile.id),
+  ]);
 
-  /* 3. Renderizar UI interactiva con datos del servidor */
-  return <DashboardClient agents={agents} userEmail={user.email} />;
+  const dashboardAgents: DashboardAgent[] = agents.map((agent) => ({
+    id: agent.id,
+    slug: agent.slug,
+    name: agent.name,
+    shortDescription: agent.short_description ?? "Agente listo para ejecutarse.",
+    description: agent.description ?? agent.short_description ?? "",
+    totalRuns: agent.total_runs,
+  }));
+
+  return (
+    <DashboardClient
+      agents={dashboardAgents}
+      initialChatHistory={buildChatHistory(executionHistory)}
+      userEmail={user.email}
+    />
+  );
 }

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { getPublishedAgentBySlug, listOwnedAgentIds } from "@/ai/agent-runner";
 import { SiteHeader } from "@/components/layout/site-header";
-import { Button } from "@/components/ui/button";
+import { getCurrentProfile } from "@/lib/auth";
 import { featuredAgents, getAgentBySlug } from "@/lib/agents";
+import { AgentAcquireButton } from "./agent-acquire-button";
 
 type AgentDetailPageProps = {
   params: Promise<{
@@ -24,6 +26,15 @@ export default async function AgentDetailPage({
   if (!agent) {
     notFound();
   }
+
+  const publishedAgent = await getPublishedAgentBySlug(agent.slug);
+
+  if (!publishedAgent) {
+    notFound();
+  }
+
+  const profile = await getCurrentProfile();
+  const ownedAgentIds = profile ? await listOwnedAgentIds(profile.id) : new Set();
 
   return (
     <main className="min-h-screen bg-[#050505] text-white">
@@ -93,10 +104,13 @@ export default async function AgentDetailPage({
                     </div>
                   </div>
 
-                  <Button className="absolute bottom-4 right-4 h-auto rounded-full border border-white/10 bg-[#727145] px-5 py-4 text-sm font-medium text-[#f4f1d9] shadow-[0_14px_28px_rgba(0,0,0,0.28)] hover:bg-[#838254]">
-                    Ejecutar Agente
-                    <ArrowRight className="size-4" />
-                  </Button>
+                  <AgentAcquireButton
+                    agentId={publishedAgent.id}
+                    agentSlug={agent.slug}
+                    agentName={agent.title}
+                    isAuthenticated={Boolean(profile)}
+                    initiallyOwned={ownedAgentIds.has(publishedAgent.id)}
+                  />
                 </div>
 
                 <div className="mt-6 space-y-1 text-left">

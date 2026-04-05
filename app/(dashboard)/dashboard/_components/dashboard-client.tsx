@@ -18,6 +18,7 @@ import type {
   DashboardAgent,
   DashboardChatHistory,
   DashboardMessage,
+  DashboardProgressItem,
 } from "@/lib/dashboard";
 
 type DashboardClientProps = {
@@ -170,6 +171,7 @@ function MessageBubble({
 }) {
   const isUser = message.role === "user";
   const isFailed = message.executionStatus === "failed";
+  const hasProgress = !!message.progressItems?.length;
 
   return (
     <div
@@ -199,13 +201,49 @@ function MessageBubble({
               : "rounded-tl-sm border border-white/8 bg-white/5 text-white/80",
         ].join(" ")}
       >
-        <p className="whitespace-pre-wrap">{message.content}</p>
+        {message.content ? (
+          <p className="whitespace-pre-wrap">{message.content}</p>
+        ) : null}
+
+        {hasProgress ? (
+          <div className={message.content ? "mt-3 space-y-2" : "space-y-2"}>
+            {message.progressItems?.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-start gap-2 rounded-xl border border-white/6 bg-black/10 px-3 py-2"
+              >
+                <span
+                  className={[
+                    "mt-1 h-2 w-2 flex-shrink-0 rounded-full",
+                    item.status === "completed"
+                      ? "bg-emerald-400"
+                      : item.status === "failed"
+                        ? "bg-red-400"
+                        : "bg-[#d9ff00] animate-pulse",
+                  ].join(" ")}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-white/85">{item.label}</p>
+                  <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-white/30">
+                    {item.kind === "tool" ? "Tool" : "Paso"}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         <div
           className={[
             "mt-2 flex items-center gap-2 text-[10px]",
             isUser ? "justify-end text-purple-300/50" : "text-white/25",
           ].join(" ")}
         >
+          {!isUser && message.isStreaming ? (
+            <span className="rounded-full border border-[#d9ff00]/30 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-[#d9ff00]">
+              En proceso
+            </span>
+          ) : null}
           {!isUser && isFailed ? (
             <span className="rounded-full border border-red-500/30 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-red-200">
               Fallo
@@ -280,10 +318,142 @@ export function DashboardClient({
 
   const selectedAgent = agents.find((agent) => agent.slug === selectedAgentSlug);
   const currentMessages = selectedAgent ? chatHistory[selectedAgent.slug] ?? [] : [];
+  const lastMessage = currentMessages[currentMessages.length - 1];
+  const lastMessageProgressCount = lastMessage?.progressItems?.length ?? 0;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [currentMessages.length, selectedAgentSlug, isSending]);
+  }, [
+    currentMessages.length,
+    lastMessage?.isStreaming,
+    lastMessageProgressCount,
+    selectedAgentSlug,
+    isSending,
+  ]);
+
+  function updateMessage(
+    agentSlug: string,
+    messageId: string,
+    updater: (message: DashboardMessage) => DashboardMessage,
+  ) {
+    setChatHistory((current) => ({
+      ...current,
+      [agentSlug]: (current[agentSlug] ?? []).map((message) =>
+        message.id === messageId ? updater(message) : message,
+      ),
+    }));
+  }
+
+  function upsertProgressItem(
+    items: DashboardProgressItem[],
+    nextItem: DashboardProgressItem,
+  ) {
+    const existingIndex = items.findIndex((item) => item.id === nextItem.id);
+
+    if (existingIndex === -1) {
+      return [...items, nextItem];
+    }
+
+    return items.map((item, index) =>
+      index === existingIndex ? { ...item, ...nextItem } : item,
+    );
+  }
+
+  async function readStreamedExecution(
+    response: Response,
+    agentSlug: string,
+    progressMessageId: string,
+  ) {
+    if (!response.body) {
+      throw new Error("No se recibio ningun stream del servidor.");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalPayload:
+      | {
+          output: string;
+          execution: {
+            id: string;
+            status: "pending" | "completed" | "failed";
+            created_at: string;
+          };
+        }
+      | undefined;
+
+    const processBlock = (block: string) => {
+      const lines = block.split("\n").filter(Boolean);
+      const eventName =
+        lines.find((line) => line.startsWith("event:"))?.slice(6).trim() ??
+        "message";
+      const dataText = lines
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .join("\n");
+
+      if (!dataText) {
+        return;
+      }
+
+      const payload = JSON.parse(dataText) as Record<string, unknown>;
+
+      if (eventName === "progress") {
+        const progressItem: DashboardProgressItem = {
+          id: String(payload.id ?? crypto.randomUUID()),
+          kind: payload.kind === "tool" ? "tool" : "status",
+          label: String(payload.label ?? "Paso en curso"),
+          status:
+            payload.status === "completed" ||
+            payload.status === "failed" ||
+            payload.status === "running"
+              ? payload.status
+              : "running",
+        };
+
+        updateMessage(agentSlug, progressMessageId, (message) => ({
+          ...message,
+          progressItems: upsertProgressItem(message.progressItems ?? [], progressItem),
+        }));
+      }
+
+      if (eventName === "complete") {
+        finalPayload = payload as typeof finalPayload;
+      }
+
+      if (eventName === "error") {
+        throw new Error(String(payload.error ?? "No se pudo ejecutar el agente."));
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+
+      let separatorIndex = buffer.indexOf("\n\n");
+
+      while (separatorIndex !== -1) {
+        const block = buffer.slice(0, separatorIndex);
+        buffer = buffer.slice(separatorIndex + 2);
+
+        if (block.trim()) {
+          processBlock(block);
+        }
+
+        separatorIndex = buffer.indexOf("\n\n");
+      }
+
+      if (done) {
+        break;
+      }
+    }
+
+    if (!finalPayload?.output || !finalPayload.execution) {
+      throw new Error("La ejecucion termino sin respuesta final.");
+    }
+
+    return finalPayload;
+  }
 
   function handleTopicClick(topic: string) {
     setInputValue(topic);
@@ -333,8 +503,34 @@ export function DashboardClient({
     setErrorMessage(null);
     setIsSending(true);
 
+    const progressMessageId = crypto.randomUUID();
+    const progressMessage: DashboardMessage = {
+      id: progressMessageId,
+      role: "assistant",
+      content: "Proceso del agente",
+      timestamp: new Date().toISOString(),
+      executionStatus: "pending",
+      isStreaming: true,
+      progressItems: [
+        {
+          id: "request-received",
+          kind: "status",
+          label: "Solicitud recibida",
+          status: "completed",
+        },
+      ],
+    };
+
+    setChatHistory((current) => ({
+      ...current,
+      [selectedAgent.slug]: [
+        ...(current[selectedAgent.slug] ?? []),
+        progressMessage,
+      ],
+    }));
+
     try {
-      const response = await fetch("/api/run-agent", {
+      const response = await fetch("/api/run-agent/stream", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -345,19 +541,22 @@ export function DashboardClient({
         }),
       });
 
-      const payload = (await response.json()) as {
-        success: boolean;
-        error?: string;
-        output?: string;
-        execution?: {
-          status: "pending" | "completed" | "failed";
-          created_at: string;
-        };
-      };
-
-      if (!response.ok || !payload.success || !payload.output || !payload.execution) {
-        throw new Error(payload.error ?? "No se pudo ejecutar el agente.");
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "No se pudo iniciar el stream del agente.");
       }
+
+      const payload = await readStreamedExecution(
+        response,
+        selectedAgent.slug,
+        progressMessageId,
+      );
+
+      updateMessage(selectedAgent.slug, progressMessageId, (message) => ({
+        ...message,
+        executionStatus: "completed",
+        isStreaming: false,
+      }));
 
       const assistantMessage: DashboardMessage = {
         id: crypto.randomUUID(),
@@ -381,21 +580,17 @@ export function DashboardClient({
           : "Hubo un problema ejecutando el agente.";
 
       setErrorMessage(message);
-
-      const failedMessage: DashboardMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: `No pude completar la ejecucion.\n\n${message}`,
-        timestamp: new Date().toISOString(),
+      updateMessage(selectedAgent.slug, progressMessageId, (messageState) => ({
+        ...messageState,
+        content: `Proceso interrumpido\n\n${message}`,
         executionStatus: "failed",
-      };
-
-      setChatHistory((current) => ({
-        ...current,
-        [selectedAgent.slug]: [
-          ...(current[selectedAgent.slug] ?? []),
-          failedMessage,
-        ],
+        isStreaming: false,
+        progressItems: upsertProgressItem(messageState.progressItems ?? [], {
+          id: "stream-error",
+          kind: "status",
+          label: "La ejecucion fallo",
+          status: "failed",
+        }),
       }));
     } finally {
       setIsSending(false);

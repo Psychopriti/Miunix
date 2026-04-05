@@ -1,6 +1,6 @@
-import { buildLeadGenerationPrompt } from "@/ai/prompts/lead-generation";
-import { buildMarketingContentPrompt } from "@/ai/prompts/marketing-content";
-import { buildResearchPrompt } from "@/ai/prompts/research";
+import type { AgentProgressReporter } from "@/ai/execution-events";
+import { runAgentWithLangChain, runAgentWithLangChainStream, canRunWithLangChain } from "@/ai/langchain";
+import { getPlatformAgentPrompt } from "@/ai/prompts";
 import { OPENAI_DEFAULT_MODEL, openai } from "@/lib/openai";
 import { supabaseAdmin } from "@/lib/supabase";
 
@@ -49,10 +49,15 @@ export type ExecuteAgentInput = {
   input: string;
 };
 
+type ExecuteAgentWithProgressInput = ExecuteAgentInput & {
+  onProgress?: AgentProgressReporter;
+};
+
 export type ExecuteAgentResult = {
   agent: AgentRow;
   execution: AgentExecutionRow;
   output: string;
+  metadata?: Record<string, Json>;
 };
 
 export type ExecutionHistoryItem = {
@@ -168,18 +173,15 @@ function canExecuteAgent({
 
 function resolvePrompt(agent: AgentRunnerInput, input: string) {
   if (agent.owner_type === "platform") {
-    switch (agent.slug) {
-      case "lead-generation":
-        return buildLeadGenerationPrompt(input);
-      case "marketing-content":
-        return buildMarketingContentPrompt(input);
-      case "research":
-        return buildResearchPrompt(input);
-      default:
-        return agent.prompt_template
-          ? `${agent.prompt_template}\n\nUser input:\n${input}`
-          : input;
+    const builtInPrompt = getPlatformAgentPrompt(agent.slug, input);
+
+    if (builtInPrompt) {
+      return builtInPrompt;
     }
+
+    return agent.prompt_template
+      ? `${agent.prompt_template}\n\nUser input:\n${input}`
+      : input;
   }
 
   if (!agent.prompt_template) {
@@ -393,14 +395,39 @@ export async function listExecutionHistory(profileId: string) {
   });
 }
 
-export async function runAgent(agent: AgentRunnerInput, input: string) {
+export async function runAgent(
+  agent: AgentRunnerInput,
+  input: string,
+  onProgress?: AgentProgressReporter,
+) {
   const normalizedInput = input.trim();
 
   if (!normalizedInput) {
     throw new AgentExecutionError("input is required.", 400);
   }
 
+  if (canRunWithLangChain(agent)) {
+    if (onProgress) {
+      return runAgentWithLangChainStream(agent, normalizedInput, onProgress);
+    }
+
+    return runAgentWithLangChain(agent, normalizedInput);
+  }
+
   const prompt = resolvePrompt(agent, normalizedInput);
+
+  await onProgress?.({
+    id: "preparing-request",
+    kind: "status",
+    label: "Preparando ejecucion",
+    status: "completed",
+  });
+  await onProgress?.({
+    id: "model-generation",
+    kind: "status",
+    label: "Generando respuesta",
+    status: "running",
+  });
 
   const response = await openai.chat.completions.create({
     model: OPENAI_DEFAULT_MODEL,
@@ -412,7 +439,22 @@ export async function runAgent(agent: AgentRunnerInput, input: string) {
     ],
   });
 
-  return response.choices[0]?.message?.content ?? "";
+  const output = response.choices[0]?.message?.content ?? "";
+
+  await onProgress?.({
+    id: "model-generation",
+    kind: "status",
+    label: "Respuesta generada",
+    status: "completed",
+  });
+
+  return {
+    output,
+    metadata: {
+      provider: "openai",
+      model: OPENAI_DEFAULT_MODEL,
+    },
+  };
 }
 
 async function createPendingExecution({
@@ -475,12 +517,13 @@ async function incrementAgentRunCount(agent: AgentRow) {
   }
 }
 
-export async function executeAgent({
+async function executeAgentInternal({
   profileId,
   agentId,
   agentSlug,
   input,
-}: ExecuteAgentInput): Promise<ExecuteAgentResult> {
+  onProgress,
+}: ExecuteAgentWithProgressInput): Promise<ExecuteAgentResult> {
   const normalizedInput = input.trim();
 
   if (!profileId) {
@@ -519,23 +562,38 @@ export async function executeAgent({
     profile,
   });
 
+  await onProgress?.({
+    id: "execution-created",
+    kind: "status",
+    label: "Ejecucion iniciada",
+    status: "completed",
+  });
+
   try {
-    const output = await runAgent(agent, normalizedInput);
+    const runResult = await runAgent(agent, normalizedInput, onProgress);
+    const output = runResult.output;
 
     const completedExecution = await updateExecution(execution.id, {
       status: "completed",
       output_data: {
         text: output,
-        model: OPENAI_DEFAULT_MODEL,
+        ...(runResult.metadata ?? {}),
       },
     });
 
     await incrementAgentRunCount(agent);
+    await onProgress?.({
+      id: "execution-persisted",
+      kind: "status",
+      label: "Resultado guardado",
+      status: "completed",
+    });
 
     return {
       agent,
       execution: completedExecution,
       output,
+      metadata: runResult.metadata,
     };
   } catch (error) {
     const message =
@@ -545,8 +603,16 @@ export async function executeAgent({
       status: "failed",
       output_data: {
         error: message,
+        provider: canRunWithLangChain(agent) ? "langchain" : "openai",
         model: OPENAI_DEFAULT_MODEL,
       },
+    });
+
+    await onProgress?.({
+      id: "execution-failed",
+      kind: "status",
+      label: "La ejecucion fallo",
+      status: "failed",
     });
 
     if (error instanceof AgentExecutionError) {
@@ -555,4 +621,24 @@ export async function executeAgent({
 
     throw new AgentExecutionError(message, 500);
   }
+}
+
+export async function executeAgent({
+  profileId,
+  agentId,
+  agentSlug,
+  input,
+}: ExecuteAgentInput): Promise<ExecuteAgentResult> {
+  return executeAgentInternal({
+    profileId,
+    agentId,
+    agentSlug,
+    input,
+  });
+}
+
+export async function executeAgentWithProgress(
+  input: ExecuteAgentWithProgressInput,
+): Promise<ExecuteAgentResult> {
+  return executeAgentInternal(input);
 }

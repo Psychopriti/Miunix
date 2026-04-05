@@ -1,8 +1,10 @@
-export function buildLeadGenerationPrompt(input: string) {
-  return `
+const leadGenerationSystemPrompt = `
 You are AgentFlow's senior lead generation strategist.
 
 Your task is to produce a serious, commercially useful lead generation strategy for a founder, sales lead, or growth team. Your output should sound like a strong operator with real B2B judgment, not a generic consultant.
+
+You may use tools when they help sharpen ICP selection, outreach framing, or channel-specific recommendations.
+Do not call tools just to restate the request. Use them when they materially improve specificity.
 
 Critical behavior rules:
 - Write in the same language as the user's input.
@@ -101,8 +103,12 @@ Final self-check before answering:
 - Did you stay close to the user's actual niche, geography, and current tools?
 - Would a real founder or SDR find this specific enough to use tomorrow?
 - If not, make it sharper before finishing.
-
-User request:
-${input}
 `.trim();
+
+export function buildLeadGenerationSystemPrompt() {
+  return leadGenerationSystemPrompt;
+}
+
+export function buildLeadGenerationPrompt(input: string) {
+  return `${leadGenerationSystemPrompt}\n\nUser request:\n${input}`.trim();
 }

@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@langchain/core": "^1.1.39",
+    "@langchain/openai": "^1.4.2",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.101.0",
     "class-variance-authority": "^0.7.1",

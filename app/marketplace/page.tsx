@@ -1,9 +1,16 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+
+import { listAgents } from "@/ai/agent-runner";
 import { SiteHeader } from "@/components/layout/site-header";
 import { MarketplaceCard } from "@/components/marketing/marketplace-card";
 import { featuredAgents } from "@/lib/agents";
 
-export default function MarketplacePage() {
+export default async function MarketplacePage() {
+  const publishedAgents = await listAgents();
+  const agentsBySlug = new Map(
+    publishedAgents.map((agent) => [agent.slug, agent] as const),
+  );
+
   return (
     <main className="min-h-screen bg-[#050505] text-white">
       <section className="mx-auto flex min-h-screen w-full max-w-[1280px] flex-col px-5 py-5 sm:px-8 sm:py-7">
@@ -16,15 +23,27 @@ export default function MarketplacePage() {
             </h1>
 
             <div className="mt-12 grid w-full gap-8 lg:grid-cols-3 lg:gap-16">
-              {featuredAgents.map((agent) => (
-                <MarketplaceCard
-                  key={agent.title}
-                  title={agent.title}
-                  description={agent.shortDescription}
-                  icon={agent.icon}
-                  href={`/marketplace/${agent.slug}`}
-                />
-              ))}
+              {featuredAgents.flatMap((agent) => {
+                const publishedAgent = agentsBySlug.get(agent.slug);
+
+                if (!publishedAgent) {
+                  return [];
+                }
+
+                return [
+                  <MarketplaceCard
+                    key={agent.title}
+                    title={agent.title}
+                    description={
+                      publishedAgent.short_description ?? agent.shortDescription
+                    }
+                    icon={agent.icon}
+                    href={`/marketplace/${agent.slug}`}
+                    averageRating={Number(publishedAgent.average_rating)}
+                    totalReviews={publishedAgent.total_reviews}
+                  />,
+                ];
+              })}
             </div>
 
             <div className="mt-8 flex items-center gap-2 text-sm text-[#b891e9]">

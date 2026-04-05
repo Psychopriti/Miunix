@@ -3,17 +3,25 @@ import type { OpenAIModelId } from "@/types/openai";
 type ServerEnv = {
   openAiApiKey: string;
   openAiModelDefault: OpenAIModelId;
+  openAiModelQuality: OpenAIModelId;
   supabaseUrl: string;
   supabaseAnonKey: string;
   supabaseServiceRoleKey: string;
+  serperApiKey: string | null;
+  tavilyApiKey: string | null;
 };
 
-type OpenAiEnv = Pick<ServerEnv, "openAiApiKey" | "openAiModelDefault">;
+type OpenAiEnv = Pick<
+  ServerEnv,
+  "openAiApiKey" | "openAiModelDefault" | "openAiModelQuality"
+>;
 
 type SupabaseEnv = Pick<
   ServerEnv,
   "supabaseUrl" | "supabaseAnonKey" | "supabaseServiceRoleKey"
 >;
+
+type SearchEnv = Pick<ServerEnv, "serperApiKey" | "tavilyApiKey">;
 
 function getRequiredEnv(name: keyof NodeJS.ProcessEnv) {
   const value = process.env[name];
@@ -31,15 +39,21 @@ export function getServerEnv(): ServerEnv {
   return {
     ...getOpenAiEnv(),
     ...getSupabaseEnv(),
+    ...getSearchEnv(),
   };
 }
 
 export function getOpenAiEnv(): OpenAiEnv {
+  const openAiModelDefault =
+    (process.env.OPENAI_MODEL_DEFAULT?.trim() as OpenAIModelId | undefined) ||
+    "gpt-4o-mini";
+
   return {
     openAiApiKey: getRequiredEnv("OPENAI_API_KEY"),
-    openAiModelDefault:
-      (process.env.OPENAI_MODEL_DEFAULT?.trim() as OpenAIModelId | undefined) ||
-      "gpt-4o-mini",
+    openAiModelDefault,
+    openAiModelQuality:
+      (process.env.OPENAI_MODEL_QUALITY?.trim() as OpenAIModelId | undefined) ||
+      openAiModelDefault,
   };
 }
 
@@ -48,5 +62,12 @@ export function getSupabaseEnv(): SupabaseEnv {
     supabaseUrl: getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
     supabaseAnonKey: getRequiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
     supabaseServiceRoleKey: getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
+  };
+}
+
+export function getSearchEnv(): SearchEnv {
+  return {
+    serperApiKey: process.env.SERPER_API_KEY?.trim() || null,
+    tavilyApiKey: process.env.TAVILY_API_KEY?.trim() || null,
   };
 }

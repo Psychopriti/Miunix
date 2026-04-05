@@ -1,4 +1,4 @@
-import { purchaseAgentAccess } from "@/ai/agent-runner";
+import { upsertAgentReview } from "@/ai/agent-reviews";
 import {
   handleRouteError,
   jsonError,
@@ -17,7 +17,8 @@ export async function POST(request: Request) {
 
     const parsedBody = await parseJsonBody<{
       agentId?: unknown;
-      agentSlug?: unknown;
+      rating?: unknown;
+      reviewText?: unknown;
     }>(request);
 
     if (parsedBody.errorResponse || !parsedBody.data) {
@@ -25,30 +26,35 @@ export async function POST(request: Request) {
     }
 
     const body = parsedBody.data;
-    const agentId = typeof body.agentId === "string" ? body.agentId.trim() : "";
-    const agentSlug =
-      typeof body.agentSlug === "string" ? body.agentSlug.trim() : "";
 
-    if (!agentId && !agentSlug) {
-      return jsonError({
-        error: "agentId or agentSlug is required.",
-        status: 400,
-      });
+    const agentId =
+      typeof body.agentId === "string" ? body.agentId.trim() : "";
+    const rating =
+      typeof body.rating === "number"
+        ? body.rating
+        : Number.parseInt(String(body.rating ?? ""), 10);
+    const reviewText =
+      typeof body.reviewText === "string" ? body.reviewText : undefined;
+
+    if (!agentId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "agentId is required.",
+        },
+        { status: 400 },
+      );
     }
 
-    const result = await purchaseAgentAccess({
+    const review = await upsertAgentReview({
       profileId: auth.profile.id,
-      agentId: agentId || undefined,
-      agentSlug: agentSlug || undefined,
+      agentId,
+      rating,
+      reviewText,
     });
 
     return jsonSuccess({
-      alreadyOwned: result.alreadyOwned,
-      agent: {
-        id: result.agent.id,
-        slug: result.agent.slug,
-        name: result.agent.name,
-      },
+      review,
     });
   } catch (error) {
     return handleRouteError(error);

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { listAgentConversations } from "@/ai/agent-conversations";
 import { listAccessibleAgents, listExecutionHistory } from "@/ai/agent-runner";
 import { ensureProfileForUser } from "@/lib/auth";
 import type {
   DashboardAgent,
   DashboardChatHistory,
+  DashboardConversation,
 } from "@/lib/dashboard";
 import { createServerSupabaseClient } from "@/lib/supabase";
 
@@ -20,11 +22,16 @@ function buildChatHistory(
   executions: Awaited<ReturnType<typeof listExecutionHistory>>,
 ) {
   return executions.reduce<DashboardChatHistory>((history, execution) => {
-    const nextMessages = [...(history[execution.agentSlug] ?? [])];
+    if (!execution.conversationId) {
+      return history;
+    }
+
+    const nextMessages = [...(history[execution.conversationId] ?? [])];
 
     if (execution.input) {
       nextMessages.push({
         id: `${execution.id}-input`,
+        conversationId: execution.conversationId,
         role: "user",
         content: execution.input,
         timestamp: execution.createdAt,
@@ -35,6 +42,7 @@ function buildChatHistory(
     if (execution.output) {
       nextMessages.push({
         id: `${execution.id}-output`,
+        conversationId: execution.conversationId,
         role: "assistant",
         content: execution.output,
         timestamp: execution.createdAt,
@@ -42,7 +50,7 @@ function buildChatHistory(
       });
     }
 
-    history[execution.agentSlug] = nextMessages;
+    history[execution.conversationId] = nextMessages;
     return history;
   }, {});
 }
@@ -58,8 +66,9 @@ export default async function DashboardPage() {
   }
 
   const profile = await ensureProfileForUser(user);
-  const [agents, executionHistory] = await Promise.all([
+  const [agents, conversations, executionHistory] = await Promise.all([
     listAccessibleAgents(profile.id),
+    listAgentConversations(profile.id),
     listExecutionHistory(profile.id),
   ]);
 
@@ -71,10 +80,12 @@ export default async function DashboardPage() {
     description: agent.description ?? agent.short_description ?? "",
     totalRuns: agent.total_runs,
   }));
+  const dashboardConversations: DashboardConversation[] = conversations;
 
   return (
     <DashboardClient
       agents={dashboardAgents}
+      initialConversations={dashboardConversations}
       initialChatHistory={buildChatHistory(executionHistory)}
       userEmail={user.email}
     />

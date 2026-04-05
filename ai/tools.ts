@@ -1,6 +1,12 @@
 import { tool } from "langchain";
 import { z } from "zod";
 
+import {
+  extractCompanyPage,
+  searchCompanySources,
+  searchCompanySourcesAcrossQueries,
+} from "@/ai/lead-sourcing";
+
 type ResearchFrameworkName =
   | "market-landscape"
   | "customer-needs"
@@ -242,6 +248,383 @@ const leadProfileCanvasTool = tool(
   },
 );
 
+const leadSegmentPrioritizerTool = tool(
+  async ({
+    segments,
+    offer,
+    geography,
+  }: {
+    segments: Array<{
+      name: string;
+      operationalPain?: string;
+      buyer?: string;
+    }>;
+    offer?: string;
+    geography?: string;
+  }) => {
+    const ranking = segments.map((segment, index) => {
+      const reachability = Math.max(5, 9 - index);
+      const urgency = Math.max(5, 8 - index);
+      const willingnessToPay = Math.max(4, 8 - index);
+      const totalScore = reachability + urgency + willingnessToPay;
+
+      return {
+        segment: segment.name,
+        buyer: segment.buyer ?? "Owner or operations/commercial lead",
+        operationalPain:
+          segment.operationalPain ??
+          "Leads, follow-up, coordination, or quoting depend on manual work",
+        score: totalScore,
+        whyItCanWinNow: [
+          "The buyer is close enough to operations to feel the pain directly",
+          "The workflow pain is frequent rather than occasional",
+          "The offer can be translated into a clear speed, control, or revenue outcome",
+        ],
+        redFlags: [
+          "Pain is real but too infrequent",
+          "Decision-maker is too far from day-to-day operations",
+          "Too much customization is needed before value is obvious",
+        ],
+      };
+    });
+
+    return stringify({
+      offer: offer ?? "not specified",
+      geography: geography ?? "not specified",
+      ranking: ranking.sort((left, right) => right.score - left.score),
+      scoringGuide: {
+        reachability: "How easy it is to reach the decision-maker directly",
+        urgency: "How painful and frequent the operational problem feels today",
+        willingnessToPay: "How clearly the pain maps to revenue, speed, or visibility",
+      },
+    });
+  },
+  {
+    name: "lead_segment_prioritizer",
+    description:
+      "Scores and ranks target segments for outbound lead generation based on reachability, urgency, and buying potential.",
+    schema: z.object({
+      segments: z
+        .array(
+          z.object({
+            name: z.string().describe("Segment or company type being evaluated."),
+            operationalPain: z
+              .string()
+              .optional()
+              .describe("Optional key operational pain the segment likely feels."),
+            buyer: z
+              .string()
+              .optional()
+              .describe("Optional likely buyer or decision-maker."),
+          }),
+        )
+        .min(2)
+        .describe("Candidate segments to compare."),
+      offer: z
+        .string()
+        .optional()
+        .describe("Optional offer or service being sold."),
+      geography: z
+        .string()
+        .optional()
+        .describe("Optional country, city, or region."),
+    }),
+  },
+);
+
+const leadPainTranslatorTool = tool(
+  async ({
+    niche,
+    currentWorkflow,
+    offer,
+  }: {
+    niche: string;
+    currentWorkflow?: string;
+    offer?: string;
+  }) => {
+    return stringify({
+      niche,
+      currentWorkflow: currentWorkflow ?? "not specified",
+      offer: offer ?? "not specified",
+      hiddenOperationalPains: [
+        "Follow-up happens late because no one owns the next step clearly",
+        "Leads or requests get lost between chat, calls, and spreadsheets",
+        "Management sees outcomes late because reporting depends on manual updates",
+        "Quoting, scheduling, or qualification slows down when volume increases",
+        "Team quality depends too much on who is personally on top of the workflow",
+      ],
+      businessConsequences: [
+        "Slow response reduces conversion probability",
+        "Manual handoffs create leakage and rework",
+        "Weak visibility makes it hard to manage pipeline or service quality",
+        "Growth adds overhead before it adds control",
+      ],
+      valueTranslation: [
+        "Faster first response and follow-up consistency",
+        "Less leakage between inquiry, qualification, and next action",
+        "Better operational visibility for managers or owners",
+        "Less dependence on memory and heroics from one employee",
+      ],
+    });
+  },
+  {
+    name: "lead_pain_translator",
+    description:
+      "Translates a niche and current workflow into concrete operational pains, business consequences, and value angles for outbound strategy.",
+    schema: z.object({
+      niche: z.string().describe("Niche, segment, or company type."),
+      currentWorkflow: z
+        .string()
+        .optional()
+        .describe("Optional description of the current workflow or tools."),
+      offer: z
+        .string()
+        .optional()
+        .describe("Optional offer or service being sold."),
+    }),
+  },
+);
+
+const webCompanySearchTool = tool(
+  async ({
+    query,
+    limit,
+  }: {
+    query: string;
+    limit?: number;
+  }) => {
+    const result = await searchCompanySources(query, limit ?? 5);
+
+    return stringify({
+      provider: result.provider,
+      error: result.error ?? null,
+      results: result.results,
+    });
+  },
+  {
+    name: "web_company_search",
+    description:
+      "Searches the web for real companies, directories, and local business pages that match a sourcing query.",
+    schema: z.object({
+      query: z
+        .string()
+        .describe("Search query to find real companies or local business listings."),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(10)
+        .optional()
+        .describe("Maximum number of results to return."),
+    }),
+  },
+);
+
+const webPageExtractorTool = tool(
+  async ({
+    url,
+    maxCharacters,
+  }: {
+    url: string;
+    maxCharacters?: number;
+  }) => {
+    const page = await extractCompanyPage(url, maxCharacters ?? 5000);
+
+    return stringify(page);
+  },
+  {
+    name: "web_page_extractor",
+    description:
+      "Fetches a web page and extracts its title and main text so the agent can inspect a real company or listing page.",
+    schema: z.object({
+      url: z.string().url().describe("URL of the page to inspect."),
+      maxCharacters: z
+        .number()
+        .int()
+        .min(500)
+        .max(12000)
+        .optional()
+        .describe("Maximum number of text characters to return."),
+    }),
+  },
+);
+
+const multiQueryCompanySearchTool = tool(
+  async ({
+    queries,
+    limitPerQuery,
+    maxTotalResults,
+  }: {
+    queries: string[];
+    limitPerQuery?: number;
+    maxTotalResults?: number;
+  }) => {
+    const results = await searchCompanySourcesAcrossQueries(
+      queries,
+      limitPerQuery ?? 4,
+      maxTotalResults ?? 12,
+    );
+
+    return stringify({
+      queries,
+      results,
+    });
+  },
+  {
+    name: "multi_query_company_search",
+    description:
+      "Runs multiple web company searches, deduplicates results, and helps source real companies across several query variants.",
+    schema: z.object({
+      queries: z
+        .array(z.string())
+        .min(1)
+        .max(8)
+        .describe("Multiple search queries to run for sourcing companies."),
+      limitPerQuery: z
+        .number()
+        .int()
+        .min(1)
+        .max(10)
+        .optional()
+        .describe("Maximum results per query."),
+      maxTotalResults: z
+        .number()
+        .int()
+        .min(1)
+        .max(20)
+        .optional()
+        .describe("Maximum deduplicated results to return overall."),
+    }),
+  },
+);
+
+const companyProspectScorerTool = tool(
+  async ({
+    companies,
+    offer,
+    targetGeography,
+  }: {
+    companies: Array<{
+      name: string;
+      url?: string;
+      signals?: string[];
+      businessType?: string;
+    }>;
+    offer?: string;
+    targetGeography?: string;
+  }) => {
+    const ranking = companies.map((company, index) => {
+      const visibleSignals = company.signals ?? [];
+      const lowerName = company.name.toLowerCase();
+      const lowerSignals = visibleSignals.join(" ").toLowerCase();
+      const lowerBusinessType = company.businessType?.toLowerCase() ?? "";
+      const url = company.url?.toLowerCase() ?? "";
+
+      const competitorPattern =
+        /(crm|chatbot|automatiz|automation|marketing digital|agencia de marketing|software|saas|whatsapp api|mensajes masivos|bulk messaging|contact center platform)/i;
+      const operationalBusinessPattern =
+        /(clinica|hospital|taller|ferreter|inmobili|agencia de viajes|restaurante|hotel|universidad|colegio|distribuidor|laboratorio|optica|dent|car rental|renta|constructora|servicio)/i;
+      const aggregatorPattern =
+        /(mapanicaragua|directorio|paginasamarillas|yellowpages|listado|business\.site|facebook\.com\/.*\/posts|instagram\.com)/i;
+
+      const competitorPenalty =
+        competitorPattern.test(lowerName) ||
+        competitorPattern.test(lowerSignals) ||
+        competitorPattern.test(lowerBusinessType)
+          ? 28
+          : 0;
+
+      const operationalBonus =
+        operationalBusinessPattern.test(lowerName) ||
+        operationalBusinessPattern.test(lowerSignals) ||
+        operationalBusinessPattern.test(lowerBusinessType)
+          ? 16
+          : 0;
+
+      const aggregatorPenalty = aggregatorPattern.test(url) ? 14 : 0;
+      const ownedSourceBonus =
+        url && !aggregatorPattern.test(url) && !url.includes("facebook.com")
+          ? 8
+          : 0;
+
+      const score = Math.max(
+        18,
+        78 -
+          index * 5 +
+          visibleSignals.length * 3 +
+          operationalBonus +
+          ownedSourceBonus -
+          competitorPenalty -
+          aggregatorPenalty,
+      );
+
+      return {
+        company: company.name,
+        url: company.url ?? null,
+        score,
+        confidence:
+          score >= 82 ? "alta" : score >= 58 ? "media" : "baja",
+        whyItMayFit: [
+          competitorPenalty > 0
+            ? "This company may be adjacent to the solution space, so it is less attractive as a direct prospect"
+            : "The business appears reachable through public digital channels",
+          operationalBonus > 0
+            ? "The business looks like an operational company that may suffer workflow friction in sales, service, quoting, or follow-up"
+            : "There are visible operational or commercial workflows that can likely be improved",
+          "The company is easier to prioritize when the website or listing shows active demand capture",
+        ],
+        signalsUsed: visibleSignals,
+        prospectType:
+          competitorPenalty > 0 ? "adjacent_or_competitor" : "operational_buyer",
+        sourceType: aggregatorPattern.test(url)
+          ? "directory_or_social"
+          : "owned_or_direct_source",
+      };
+    });
+
+    return stringify({
+      offer: offer ?? "not specified",
+      targetGeography: targetGeography ?? "not specified",
+      ranking: ranking
+        .sort((left, right) => right.score - left.score)
+        .filter((item) => item.score >= 28),
+    });
+  },
+  {
+    name: "company_prospect_scorer",
+    description:
+      "Ranks real companies for prospecting based on visible signals and probable fit for the offer.",
+    schema: z.object({
+      companies: z
+        .array(
+          z.object({
+            name: z.string().describe("Company name."),
+            url: z.string().optional().describe("Optional company or listing URL."),
+            signals: z
+              .array(z.string())
+              .optional()
+              .describe("Observed signals from search results or pages."),
+            businessType: z
+              .string()
+              .optional()
+              .describe("Optional business category inferred from the result or page."),
+          }),
+        )
+        .min(1)
+        .max(10)
+        .describe("Candidate companies to rank."),
+      offer: z
+        .string()
+        .optional()
+        .describe("Optional offer being sold."),
+      targetGeography: z
+        .string()
+        .optional()
+        .describe("Optional target geography."),
+    }),
+  },
+);
+
 const outreachPlannerTool = tool(
   async ({
     audience,
@@ -366,7 +749,16 @@ const copyChannelSpecTool = tool(
 );
 
 const agentToolsBySlug = {
-  "lead-generation": [leadProfileCanvasTool, outreachPlannerTool],
+  "lead-generation": [
+    leadProfileCanvasTool,
+    leadSegmentPrioritizerTool,
+    leadPainTranslatorTool,
+    outreachPlannerTool,
+    webCompanySearchTool,
+    multiQueryCompanySearchTool,
+    webPageExtractorTool,
+    companyProspectScorerTool,
+  ],
   "marketing-content": [campaignAngleTool, copyChannelSpecTool],
   research: [researchFrameworkTool, signalScannerTool, decisionMatrixTool],
 } as const;

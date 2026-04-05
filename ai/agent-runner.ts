@@ -1,7 +1,9 @@
 import type { AgentProgressReporter } from "@/ai/execution-events";
+import { ensureConversationForExecution, updateConversationMetadata } from "@/ai/agent-conversations";
 import { runAgentWithLangChain, runAgentWithLangChainStream, canRunWithLangChain } from "@/ai/langchain";
 import { getPlatformAgentPrompt } from "@/ai/prompts";
-import { OPENAI_DEFAULT_MODEL, openai } from "@/lib/openai";
+import { getPlatformAgentSystemPrompt } from "@/ai/prompts";
+import { OPENAI_DEFAULT_MODEL, OPENAI_QUALITY_MODEL, openai } from "@/lib/openai";
 import { supabaseAdmin } from "@/lib/supabase";
 
 import type { Database } from "@/types/database";
@@ -46,6 +48,7 @@ export type ExecuteAgentInput = {
   profileId: string;
   agentId?: string;
   agentSlug?: string;
+  conversationId?: string;
   input: string;
 };
 
@@ -56,12 +59,14 @@ type ExecuteAgentWithProgressInput = ExecuteAgentInput & {
 export type ExecuteAgentResult = {
   agent: AgentRow;
   execution: AgentExecutionRow;
+  conversationId: string;
   output: string;
   metadata?: Record<string, Json>;
 };
 
 export type ExecutionHistoryItem = {
   id: string;
+  conversationId: string | null;
   agentId: string;
   agentSlug: string;
   agentName: string;
@@ -80,6 +85,36 @@ export class AgentExecutionError extends Error {
     this.name = "AgentExecutionError";
   }
 }
+
+const builtInAgentOutputExpectations: Partial<Record<string, string[]>> = {
+  "marketing-content": [
+    "1. Strategic Direction",
+    "2. Core Campaign Concept",
+    "5. Primary Marketing Copy",
+    "8. Optimization Notes",
+  ],
+  research: [
+    "1. Research Scope",
+    "2. Executive Summary",
+    "6. Strategic Recommendation",
+    "7. Next Questions to Investigate",
+  ],
+};
+
+const builtInAgentRewriteRubric: Partial<Record<string, string[]>> = {
+  "lead-generation": [
+    "Answer the user's actual task instead of forcing a preset lead-generation template.",
+    "If the user did not request a format, choose the simplest structure that makes the answer clear and useful.",
+    "Choose segments, pains, and buyers that are concrete and reachable, not broad abstractions.",
+    "Translate AI or automation into operational outcomes, not generic efficiency claims.",
+    "If you include outreach, make it credible, channel-aware, and specific to the workflow pain.",
+    "Avoid generic pain points or recommendations that could fit almost any business.",
+    "If you sourced real companies, include a source URL for each company whenever one was found.",
+    "If sourcing results are partial, return the best real companies found with confidence notes instead of retreating into generic advice.",
+    "Prefer operational buyer candidates over competitors, agencies, CRM vendors, chatbot vendors, or automation providers.",
+    "When sourcing companies, clearly separate observed signals from inferred pains and lower confidence for directory-like sources.",
+  ],
+};
 
 async function findProfile(profileId: string) {
   const result = await supabaseAdmin
@@ -204,6 +239,70 @@ function readJsonTextValue(
 
   const candidate = value[key];
   return typeof candidate === "string" ? candidate : null;
+}
+
+function shouldPolishBuiltInOutput(agent: AgentRunnerInput, output: string) {
+  const expectations = builtInAgentOutputExpectations[agent.slug];
+
+  if (!expectations) {
+    return false;
+  }
+
+  const normalizedOutput = output.trim();
+
+  if (normalizedOutput.length < 900) {
+    return true;
+  }
+
+  const matchedHeadings = expectations.filter((heading) =>
+    normalizedOutput.includes(heading),
+  ).length;
+
+  return matchedHeadings < Math.max(2, expectations.length - 1);
+}
+
+async function polishBuiltInOutput(
+  agent: AgentRunnerInput,
+  input: string,
+  draftOutput: string,
+) {
+  const systemPrompt = getPlatformAgentSystemPrompt(agent.slug);
+
+  if (!systemPrompt) {
+    return draftOutput;
+  }
+
+  const rubric = builtInAgentRewriteRubric[agent.slug] ?? [];
+
+  const response = await openai.chat.completions.create({
+    model: OPENAI_QUALITY_MODEL,
+    messages: [
+      {
+        role: "system",
+        content: systemPrompt,
+      },
+      {
+        role: "user",
+        content: [
+          "The following draft is too shallow or does not fully satisfy the user's request.",
+          "Rewrite it from scratch so it is materially more specific, commercially useful, and complete.",
+          "Keep the same language as the user's request.",
+          "Do not mention this rewrite process.",
+          ...(rubric.length > 0
+            ? ["Apply this quality rubric:", ...rubric.map((item) => `- ${item}`), ""]
+            : []),
+          "",
+          "User request:",
+          input,
+          "",
+          "Current draft:",
+          draftOutput,
+        ].join("\n"),
+      },
+    ],
+  });
+
+  return response.choices[0]?.message?.content?.trim() || draftOutput;
 }
 
 export async function listAgents() {
@@ -383,6 +482,7 @@ export async function listExecutionHistory(profileId: string) {
     return [
       {
         id: execution.id,
+        conversationId: execution.conversation_id,
         agentId: execution.agent_id,
         agentSlug: agent.slug,
         agentName: agent.name,
@@ -430,7 +530,7 @@ export async function runAgent(
   });
 
   const response = await openai.chat.completions.create({
-    model: OPENAI_DEFAULT_MODEL,
+    model: OPENAI_QUALITY_MODEL,
     messages: [
       {
         role: "user",
@@ -452,17 +552,19 @@ export async function runAgent(
     output,
     metadata: {
       provider: "openai",
-      model: OPENAI_DEFAULT_MODEL,
+      model: OPENAI_QUALITY_MODEL,
     },
   };
 }
 
 async function createPendingExecution({
   agent,
+  conversationId,
   input,
   profile,
 }: {
   agent: AgentRow;
+  conversationId: string;
   input: string;
   profile: ProfileRow;
 }) {
@@ -471,6 +573,7 @@ async function createPendingExecution({
     .insert({
       profile_id: profile.id,
       agent_id: agent.id,
+      conversation_id: conversationId,
       input_data: {
         input,
       },
@@ -521,6 +624,7 @@ async function executeAgentInternal({
   profileId,
   agentId,
   agentSlug,
+  conversationId,
   input,
   onProgress,
 }: ExecuteAgentWithProgressInput): Promise<ExecuteAgentResult> {
@@ -556,8 +660,16 @@ async function executeAgentInternal({
     );
   }
 
+  const conversation = await ensureConversationForExecution({
+    profileId: profile.id,
+    agentId: agent.id,
+    conversationId,
+    input: normalizedInput,
+  });
+
   const execution = await createPendingExecution({
     agent,
+    conversationId: conversation.id,
     input: normalizedInput,
     profile,
   });
@@ -571,7 +683,14 @@ async function executeAgentInternal({
 
   try {
     const runResult = await runAgent(agent, normalizedInput, onProgress);
-    const output = runResult.output;
+    let output = runResult.output;
+
+    if (
+      agent.owner_type === "platform" &&
+      shouldPolishBuiltInOutput(agent, output)
+    ) {
+      output = await polishBuiltInOutput(agent, normalizedInput, output);
+    }
 
     const completedExecution = await updateExecution(execution.id, {
       status: "completed",
@@ -582,6 +701,11 @@ async function executeAgentInternal({
     });
 
     await incrementAgentRunCount(agent);
+    await updateConversationMetadata({
+      conversationId: conversation.id,
+      profileId: profile.id,
+      lastMessageAt: completedExecution.created_at,
+    });
     await onProgress?.({
       id: "execution-persisted",
       kind: "status",
@@ -592,6 +716,7 @@ async function executeAgentInternal({
     return {
       agent,
       execution: completedExecution,
+      conversationId: conversation.id,
       output,
       metadata: runResult.metadata,
     };
@@ -606,6 +731,12 @@ async function executeAgentInternal({
         provider: canRunWithLangChain(agent) ? "langchain" : "openai",
         model: OPENAI_DEFAULT_MODEL,
       },
+    });
+
+    await updateConversationMetadata({
+      conversationId: conversation.id,
+      profileId: profile.id,
+      lastMessageAt: execution.created_at,
     });
 
     await onProgress?.({
@@ -627,12 +758,14 @@ export async function executeAgent({
   profileId,
   agentId,
   agentSlug,
+  conversationId,
   input,
 }: ExecuteAgentInput): Promise<ExecuteAgentResult> {
   return executeAgentInternal({
     profileId,
     agentId,
     agentSlug,
+    conversationId,
     input,
   });
 }

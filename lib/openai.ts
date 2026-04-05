@@ -9,3 +9,4 @@ export const openai = new OpenAI({
 });
 
 export const OPENAI_DEFAULT_MODEL = serverEnv.openAiModelDefault;
+export const OPENAI_QUALITY_MODEL = serverEnv.openAiModelQuality;

@@ -7,6 +7,16 @@ export type DashboardAgent = {
   totalRuns: number;
 };
 
+export type DashboardConversation = {
+  id: string;
+  agentId: string;
+  agentSlug: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  lastMessageAt: string;
+};
+
 export type DashboardProgressItem = {
   id: string;
   kind: "status" | "tool";
@@ -16,6 +26,7 @@ export type DashboardProgressItem = {
 
 export type DashboardMessage = {
   id: string;
+  conversationId: string;
   role: "user" | "assistant";
   content: string;
   timestamp: string;

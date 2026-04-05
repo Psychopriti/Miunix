@@ -1,4 +1,4 @@
-import { purchaseAgentAccess } from "@/ai/agent-runner";
+import { createAgentConversation } from "@/ai/agent-conversations";
 import {
   handleRouteError,
   jsonError,
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
     const parsedBody = await parseJsonBody<{
       agentId?: unknown;
-      agentSlug?: unknown;
+      title?: unknown;
     }>(request);
 
     if (parsedBody.errorResponse || !parsedBody.data) {
@@ -25,30 +25,26 @@ export async function POST(request: Request) {
     }
 
     const body = parsedBody.data;
-    const agentId = typeof body.agentId === "string" ? body.agentId.trim() : "";
-    const agentSlug =
-      typeof body.agentSlug === "string" ? body.agentSlug.trim() : "";
 
-    if (!agentId && !agentSlug) {
-      return jsonError({
-        error: "agentId or agentSlug is required.",
-        status: 400,
-      });
+    const agentId =
+      typeof body.agentId === "string" ? body.agentId.trim() : "";
+    const title = typeof body.title === "string" ? body.title : undefined;
+
+    if (!agentId) {
+      return NextResponse.json(
+        { success: false, error: "agentId is required." },
+        { status: 400 },
+      );
     }
 
-    const result = await purchaseAgentAccess({
+    const conversation = await createAgentConversation({
       profileId: auth.profile.id,
-      agentId: agentId || undefined,
-      agentSlug: agentSlug || undefined,
+      agentId,
+      title,
     });
 
     return jsonSuccess({
-      alreadyOwned: result.alreadyOwned,
-      agent: {
-        id: result.agent.id,
-        slug: result.agent.slug,
-        name: result.agent.name,
-      },
+      conversation,
     });
   } catch (error) {
     return handleRouteError(error);

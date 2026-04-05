@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
-
 import { OPENAI_DEFAULT_MODEL, openai } from "@/lib/openai";
+import { jsonError, jsonSuccess } from "@/lib/api";
 
 export async function POST() {
   const startedAt = Date.now();
@@ -24,8 +23,7 @@ export async function POST() {
 
     const content = response.choices[0]?.message?.content?.trim();
 
-    return NextResponse.json({
-      success: true,
+    return jsonSuccess({
       model: response.model,
       message: content || "Conexion exitosa con OpenAI. OK",
       latencyMs: Date.now() - startedAt,
@@ -34,12 +32,9 @@ export async function POST() {
     const message =
       error instanceof Error ? error.message : "OpenAI connection test failed.";
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: message,
-      },
-      { status: 500 },
-    );
+    return jsonError({
+      error: message,
+      status: 500,
+    });
   }
 }

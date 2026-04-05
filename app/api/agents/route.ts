@@ -1,27 +1,14 @@
-import { NextResponse } from "next/server";
-
-import { AgentExecutionError, listAgents } from "@/ai/agent-runner";
+import { listAgents } from "@/ai/agent-runner";
+import { handleRouteError, jsonSuccess } from "@/lib/api";
 
 export async function GET() {
   try {
     const agents = await listAgents();
 
-    return NextResponse.json({
-      success: true,
+    return jsonSuccess({
       agents,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Internal server error";
-    const status =
-      error instanceof AgentExecutionError ? error.statusCode : 500;
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: message,
-      },
-      { status },
-    );
+    return handleRouteError(error);
   }
 }

@@ -6,23 +6,28 @@ import {
   AlertCircle,
   ArrowUpRight,
   ChevronRight,
+  PencilLine,
   Plus,
   Search,
   Send,
   Settings,
   Sparkles,
+  Trash2,
   User,
 } from "lucide-react";
+import type { ReactNode } from "react";
 
 import type {
   DashboardAgent,
   DashboardChatHistory,
+  DashboardConversation,
   DashboardMessage,
   DashboardProgressItem,
 } from "@/lib/dashboard";
 
 type DashboardClientProps = {
   agents: DashboardAgent[];
+  initialConversations: DashboardConversation[];
   initialChatHistory: DashboardChatHistory;
   userEmail?: string | null;
 };
@@ -105,10 +110,12 @@ function AgentIconWrapper({
 function AgentCard({
   agent,
   isSelected,
+  conversationCount,
   onSelect,
 }: {
   agent: DashboardAgent;
   isSelected: boolean;
+  conversationCount: number;
   onSelect: () => void;
 }) {
   return (
@@ -137,7 +144,8 @@ function AgentCard({
             {agent.name}
           </p>
           <p className="mt-0.5 truncate text-[10px] text-white/40">
-            {agent.totalRuns} ejecuciones
+            {conversationCount} conversación
+            {conversationCount === 1 ? "" : "es"}
           </p>
         </div>
 
@@ -147,6 +155,47 @@ function AgentCard({
       </div>
     </button>
   );
+}
+
+function formatConversationTimestamp(timestamp: string) {
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleDateString("es-NI", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function formatConversationTitle(title: string) {
+  const normalized = title.trim();
+  return normalized || "Nueva conversacion";
+}
+
+function getConversationPreview(messages: DashboardMessage[]) {
+  const lastMeaningfulMessage = [...messages]
+    .reverse()
+    .find((message) => message.content.trim());
+
+  if (!lastMeaningfulMessage) {
+    return "Sin mensajes todavia";
+  }
+
+  const normalized = lastMeaningfulMessage.content
+    .replace(/\s+/g, " ")
+    .replace(/[#*`>-]/g, "")
+    .trim();
+
+  if (!normalized) {
+    return "Sin mensajes todavia";
+  }
+
+  return normalized.length > 68
+    ? `${normalized.slice(0, 65).trimEnd()}...`
+    : normalized;
 }
 
 function formatTimestamp(timestamp: string) {
@@ -160,6 +209,140 @@ function formatTimestamp(timestamp: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function renderInlineMarkdown(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+
+  return parts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return (
+        <strong key={`${part}-${index}`} className="font-semibold text-white">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    return <span key={`${part}-${index}`}>{part}</span>;
+  });
+}
+
+function renderMarkdownContent(content: string) {
+  const lines = content.split("\n");
+  const blocks: ReactNode[] = [];
+  let paragraphLines: string[] = [];
+  let bulletLines: string[] = [];
+
+  const flushParagraph = () => {
+    if (paragraphLines.length === 0) {
+      return;
+    }
+
+    const paragraph = paragraphLines.join(" ").trim();
+
+    if (paragraph) {
+      blocks.push(
+        <p key={`paragraph-${blocks.length}`} className="whitespace-pre-wrap">
+          {renderInlineMarkdown(paragraph)}
+        </p>,
+      );
+    }
+
+    paragraphLines = [];
+  };
+
+  const flushBullets = () => {
+    if (bulletLines.length === 0) {
+      return;
+    }
+
+    blocks.push(
+      <ul
+        key={`bullets-${blocks.length}`}
+        className="space-y-1.5 pl-5 text-inherit"
+      >
+        {bulletLines.map((line, index) => (
+          <li key={`bullet-${index}`} className="list-disc">
+            {renderInlineMarkdown(line)}
+          </li>
+        ))}
+      </ul>,
+    );
+
+    bulletLines = [];
+  };
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+
+    if (!trimmedLine) {
+      flushParagraph();
+      flushBullets();
+      continue;
+    }
+
+    if (trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ")) {
+      flushParagraph();
+      bulletLines.push(trimmedLine.slice(2).trim());
+      continue;
+    }
+
+    if (/^\d+\.\s/.test(trimmedLine)) {
+      flushParagraph();
+      bulletLines.push(trimmedLine.replace(/^\d+\.\s/, "").trim());
+      continue;
+    }
+
+    if (trimmedLine.startsWith("## ")) {
+      flushParagraph();
+      flushBullets();
+      blocks.push(
+        <h3
+          key={`heading-${blocks.length}`}
+          className="mt-2 text-base font-semibold text-white"
+        >
+          {renderInlineMarkdown(trimmedLine.slice(3).trim())}
+        </h3>,
+      );
+      continue;
+    }
+
+    if (trimmedLine.startsWith("### ")) {
+      flushParagraph();
+      flushBullets();
+      blocks.push(
+        <h4
+          key={`heading-${blocks.length}`}
+          className="mt-2 text-sm font-semibold uppercase tracking-[0.08em] text-white/88"
+        >
+          {renderInlineMarkdown(trimmedLine.slice(4).trim())}
+        </h4>,
+      );
+      continue;
+    }
+
+    if (trimmedLine.startsWith("# ")) {
+      flushParagraph();
+      flushBullets();
+      blocks.push(
+        <h2
+          key={`heading-${blocks.length}`}
+          className="mt-2 text-lg font-semibold text-white"
+        >
+          {renderInlineMarkdown(trimmedLine.slice(2).trim())}
+        </h2>,
+      );
+      continue;
+    }
+
+    flushBullets();
+    paragraphLines.push(trimmedLine);
+  }
+
+  flushParagraph();
+  flushBullets();
+
+  return <div className="space-y-3">{blocks}</div>;
 }
 
 function MessageBubble({
@@ -202,7 +385,7 @@ function MessageBubble({
         ].join(" ")}
       >
         {message.content ? (
-          <p className="whitespace-pre-wrap">{message.content}</p>
+          renderMarkdownContent(message.content)
         ) : null}
 
         {hasProgress ? (
@@ -305,21 +488,73 @@ function EmptyState({
 
 export function DashboardClient({
   agents,
+  initialConversations,
   initialChatHistory,
   userEmail,
 }: DashboardClientProps) {
   const [selectedAgentSlug, setSelectedAgentSlug] = useState(agents[0]?.slug ?? "");
+  const [conversations, setConversations] =
+    useState<DashboardConversation[]>(initialConversations);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
+    initialConversations[0]?.id ?? null,
+  );
   const [chatHistory, setChatHistory] =
     useState<DashboardChatHistory>(initialChatHistory);
   const [inputValue, setInputValue] = useState("");
+  const [conversationSearch, setConversationSearch] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const [conversationActionId, setConversationActionId] = useState<string | null>(null);
+  const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const selectedAgent = agents.find((agent) => agent.slug === selectedAgentSlug);
-  const currentMessages = selectedAgent ? chatHistory[selectedAgent.slug] ?? [] : [];
+  const conversationsForSelectedAgent = conversations.filter(
+    (conversation) => conversation.agentSlug === selectedAgentSlug,
+  );
+  const filteredConversationsForSelectedAgent = conversationsForSelectedAgent.filter(
+    (conversation) =>
+      formatConversationTitle(conversation.title)
+        .toLowerCase()
+        .includes(conversationSearch.trim().toLowerCase()) ||
+      getConversationPreview(chatHistory[conversation.id] ?? [])
+        .toLowerCase()
+        .includes(conversationSearch.trim().toLowerCase()),
+  );
+  const selectedConversation =
+    conversationsForSelectedAgent.find(
+      (conversation) => conversation.id === selectedConversationId,
+    ) ?? conversationsForSelectedAgent[0] ?? null;
+  const currentMessages = selectedConversation
+    ? chatHistory[selectedConversation.id] ?? []
+    : [];
   const lastMessage = currentMessages[currentMessages.length - 1];
   const lastMessageProgressCount = lastMessage?.progressItems?.length ?? 0;
+
+  useEffect(() => {
+    if (!selectedAgentSlug) {
+      setSelectedConversationId(null);
+      return;
+    }
+
+    const nextConversations = conversations.filter(
+      (conversation) => conversation.agentSlug === selectedAgentSlug,
+    );
+
+    if (nextConversations.length === 0) {
+      setSelectedConversationId(null);
+      return;
+    }
+
+    if (
+      !selectedConversationId ||
+      !nextConversations.some((conversation) => conversation.id === selectedConversationId)
+    ) {
+      setSelectedConversationId(nextConversations[0].id);
+    }
+  }, [conversations, selectedAgentSlug, selectedConversationId]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -332,13 +567,13 @@ export function DashboardClient({
   ]);
 
   function updateMessage(
-    agentSlug: string,
+    conversationId: string,
     messageId: string,
     updater: (message: DashboardMessage) => DashboardMessage,
   ) {
     setChatHistory((current) => ({
       ...current,
-      [agentSlug]: (current[agentSlug] ?? []).map((message) =>
+      [conversationId]: (current[conversationId] ?? []).map((message) =>
         message.id === messageId ? updater(message) : message,
       ),
     }));
@@ -361,7 +596,7 @@ export function DashboardClient({
 
   async function readStreamedExecution(
     response: Response,
-    agentSlug: string,
+    conversationId: string,
     progressMessageId: string,
   ) {
     if (!response.body) {
@@ -373,6 +608,7 @@ export function DashboardClient({
     let buffer = "";
     let finalPayload:
       | {
+          conversationId?: string;
           output: string;
           execution: {
             id: string;
@@ -411,7 +647,7 @@ export function DashboardClient({
               : "running",
         };
 
-        updateMessage(agentSlug, progressMessageId, (message) => ({
+        updateMessage(conversationId, progressMessageId, (message) => ({
           ...message,
           progressItems: upsertProgressItem(message.progressItems ?? [], progressItem),
         }));
@@ -459,22 +695,161 @@ export function DashboardClient({
     setInputValue(topic);
   }
 
-  function handleNewConversation() {
+  async function createConversation(title?: string) {
     if (!selectedAgent) {
-      return;
+      return null;
     }
 
-    setChatHistory((current) => ({
-      ...current,
-      [selectedAgent.slug]: [],
-    }));
+    setIsCreatingConversation(true);
     setErrorMessage(null);
+
+    try {
+      const response = await fetch("/api/agent-conversations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          agentId: selectedAgent.id,
+          title,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        success: boolean;
+        error?: string;
+        conversation?: DashboardConversation;
+      };
+
+      if (!response.ok || !payload.success || !payload.conversation) {
+        throw new Error(payload.error ?? "No se pudo crear la conversacion.");
+      }
+
+      setConversations((current) => [payload.conversation!, ...current]);
+      setSelectedConversationId(payload.conversation.id);
+      setChatHistory((current) => ({
+        ...current,
+        [payload.conversation!.id]: current[payload.conversation!.id] ?? [],
+      }));
+      return payload.conversation;
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo crear la conversacion.",
+      );
+      return null;
+    } finally {
+      setIsCreatingConversation(false);
+    }
+  }
+
+  function handleNewConversation() {
+    void createConversation();
   }
 
   function handleSelectAgent(slug: string) {
     setSelectedAgentSlug(slug);
     setInputValue("");
     setErrorMessage(null);
+    setRenamingConversationId(null);
+    setConversationSearch("");
+  }
+
+  function startRenamingConversation(conversation: DashboardConversation) {
+    setRenamingConversationId(conversation.id);
+    setRenameValue(conversation.title);
+  }
+
+  async function handleRenameConversation(conversationId: string) {
+    const title = renameValue.trim();
+
+    if (!title) {
+      setRenamingConversationId(null);
+      return;
+    }
+
+    setConversationActionId(conversationId);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(`/api/agent-conversations/${conversationId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ title }),
+      });
+
+      const payload = (await response.json()) as {
+        success: boolean;
+        error?: string;
+        conversation?: DashboardConversation;
+      };
+
+      if (!response.ok || !payload.success || !payload.conversation) {
+        throw new Error(payload.error ?? "No se pudo renombrar la conversacion.");
+      }
+
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === conversationId ? payload.conversation! : conversation,
+        ),
+      );
+      setRenamingConversationId(null);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo renombrar la conversacion.",
+      );
+    } finally {
+      setConversationActionId(null);
+    }
+  }
+
+  async function handleDeleteConversation(conversationId: string) {
+    setConversationActionId(conversationId);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(`/api/agent-conversations/${conversationId}`, {
+        method: "DELETE",
+      });
+
+      const payload = (await response.json()) as {
+        success: boolean;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error ?? "No se pudo borrar la conversacion.");
+      }
+
+      setConversations((current) =>
+        current.filter((conversation) => conversation.id !== conversationId),
+      );
+      setChatHistory((current) => {
+        const next = { ...current };
+        delete next[conversationId];
+        return next;
+      });
+
+      if (selectedConversationId === conversationId) {
+        const nextConversation = conversationsForSelectedAgent.find(
+          (conversation) => conversation.id !== conversationId,
+        );
+        setSelectedConversationId(nextConversation?.id ?? null);
+      }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo borrar la conversacion.",
+      );
+    } finally {
+      setConversationActionId(null);
+    }
   }
 
   async function handleSend() {
@@ -488,8 +863,16 @@ export function DashboardClient({
       return;
     }
 
+    const activeConversation =
+      selectedConversation ?? (await createConversation(text));
+
+    if (!activeConversation) {
+      return;
+    }
+
     const userMessage: DashboardMessage = {
       id: crypto.randomUUID(),
+      conversationId: activeConversation.id,
       role: "user",
       content: text,
       timestamp: new Date().toISOString(),
@@ -497,15 +880,20 @@ export function DashboardClient({
 
     setChatHistory((current) => ({
       ...current,
-      [selectedAgent.slug]: [...(current[selectedAgent.slug] ?? []), userMessage],
+      [activeConversation.id]: [
+        ...(current[activeConversation.id] ?? []),
+        userMessage,
+      ],
     }));
     setInputValue("");
     setErrorMessage(null);
     setIsSending(true);
+    setSelectedConversationId(activeConversation.id);
 
     const progressMessageId = crypto.randomUUID();
     const progressMessage: DashboardMessage = {
       id: progressMessageId,
+      conversationId: activeConversation.id,
       role: "assistant",
       content: "Proceso del agente",
       timestamp: new Date().toISOString(),
@@ -523,8 +911,8 @@ export function DashboardClient({
 
     setChatHistory((current) => ({
       ...current,
-      [selectedAgent.slug]: [
-        ...(current[selectedAgent.slug] ?? []),
+      [activeConversation.id]: [
+        ...(current[activeConversation.id] ?? []),
         progressMessage,
       ],
     }));
@@ -537,6 +925,7 @@ export function DashboardClient({
         },
         body: JSON.stringify({
           agentId: selectedAgent.id,
+          conversationId: activeConversation.id,
           input: text,
         }),
       });
@@ -548,11 +937,11 @@ export function DashboardClient({
 
       const payload = await readStreamedExecution(
         response,
-        selectedAgent.slug,
+        activeConversation.id,
         progressMessageId,
       );
 
-      updateMessage(selectedAgent.slug, progressMessageId, (message) => ({
+      updateMessage(activeConversation.id, progressMessageId, (message) => ({
         ...message,
         executionStatus: "completed",
         isStreaming: false,
@@ -560,6 +949,7 @@ export function DashboardClient({
 
       const assistantMessage: DashboardMessage = {
         id: crypto.randomUUID(),
+        conversationId: payload.conversationId ?? activeConversation.id,
         role: "assistant",
         content: payload.output,
         timestamp: payload.execution.created_at,
@@ -568,11 +958,31 @@ export function DashboardClient({
 
       setChatHistory((current) => ({
         ...current,
-        [selectedAgent.slug]: [
-          ...(current[selectedAgent.slug] ?? []),
+        [activeConversation.id]: [
+          ...(current[activeConversation.id] ?? []),
           assistantMessage,
         ],
       }));
+      setConversations((current) =>
+        current
+          .map((conversation) =>
+            conversation.id === activeConversation.id
+              ? {
+                  ...conversation,
+                  lastMessageAt: payload.execution.created_at,
+                  title:
+                    conversation.title === "Nueva conversacion"
+                      ? text.slice(0, 72)
+                      : conversation.title,
+                }
+              : conversation,
+          )
+          .sort(
+            (left, right) =>
+              new Date(right.lastMessageAt).getTime() -
+              new Date(left.lastMessageAt).getTime(),
+          ),
+      );
     } catch (error) {
       const message =
         error instanceof Error
@@ -580,7 +990,7 @@ export function DashboardClient({
           : "Hubo un problema ejecutando el agente.";
 
       setErrorMessage(message);
-      updateMessage(selectedAgent.slug, progressMessageId, (messageState) => ({
+      updateMessage(activeConversation.id, progressMessageId, (messageState) => ({
         ...messageState,
         content: `Proceso interrumpido\n\n${message}`,
         executionStatus: "failed",
@@ -630,18 +1040,11 @@ export function DashboardClient({
             <button
               type="button"
               onClick={handleNewConversation}
+              disabled={!selectedAgent || isCreatingConversation}
               className="flex items-center gap-2.5 rounded-xl border border-white/8 bg-white/4 px-3 py-2.5 text-xs text-white/70 transition hover:bg-white/8 hover:text-white"
             >
               <Plus className="h-3.5 w-3.5" />
-              Nueva Conversacion
-            </button>
-
-            <button
-              type="button"
-              className="flex items-center gap-2.5 rounded-xl border border-white/8 bg-white/4 px-3 py-2.5 text-xs text-white/50"
-            >
-              <Search className="h-3.5 w-3.5" />
-              Historial cargado
+              {isCreatingConversation ? "Creando..." : "Nueva Conversacion"}
             </button>
           </div>
 
@@ -655,9 +1058,130 @@ export function DashboardClient({
                   key={agent.id}
                   agent={agent}
                   isSelected={selectedAgentSlug === agent.slug}
+                  conversationCount={
+                    conversations.filter(
+                      (conversation) => conversation.agentSlug === agent.slug,
+                    ).length
+                  }
                   onSelect={() => handleSelectAgent(agent.slug)}
                 />
               ))}
+            </div>
+
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-white/30">
+                  Conversaciones
+                </p>
+                <span className="text-[10px] text-white/25">
+                  {filteredConversationsForSelectedAgent.length}
+                </span>
+              </div>
+
+              <div className="mb-3 flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+                <Search className="h-3.5 w-3.5 text-white/30" />
+                <input
+                  value={conversationSearch}
+                  onChange={(event) => setConversationSearch(event.target.value)}
+                  placeholder="Buscar conversaciones"
+                  className="w-full bg-transparent text-xs text-white/75 outline-none placeholder:text-white/25"
+                />
+              </div>
+
+              {selectedAgent && filteredConversationsForSelectedAgent.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {filteredConversationsForSelectedAgent.map((conversation) => {
+                    const isSelected = selectedConversation?.id === conversation.id;
+                    const isRenaming = renamingConversationId === conversation.id;
+                    const isActing = conversationActionId === conversation.id;
+                    const preview = getConversationPreview(
+                      chatHistory[conversation.id] ?? [],
+                    );
+
+                    return (
+                      <div
+                        key={conversation.id}
+                        className={[
+                          "rounded-2xl border px-3 py-3 transition",
+                          isSelected
+                            ? "border-purple-500/45 bg-purple-500/10"
+                            : "border-white/8 bg-white/[0.025]",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-start gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedConversationId(conversation.id)}
+                            className="min-w-0 flex-1 text-left"
+                          >
+                            {isRenaming ? (
+                              <input
+                                value={renameValue}
+                                onChange={(event) => setRenameValue(event.target.value)}
+                                onBlur={() => void handleRenameConversation(conversation.id)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    void handleRenameConversation(conversation.id);
+                                  }
+
+                                  if (event.key === "Escape") {
+                                    setRenamingConversationId(null);
+                                  }
+                                }}
+                                autoFocus
+                                className="w-full rounded-lg border border-white/12 bg-black/20 px-2 py-1 text-xs text-white outline-none"
+                              />
+                            ) : (
+                              <>
+                                <p className="truncate text-xs font-medium text-white/85">
+                                  {formatConversationTitle(conversation.title)}
+                                </p>
+                                <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-white/38">
+                                  {preview}
+                                </p>
+                                <p className="mt-2 text-[10px] text-white/28">
+                                  {formatConversationTimestamp(conversation.lastMessageAt)}
+                                </p>
+                              </>
+                            )}
+                          </button>
+
+                          {!isRenaming ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => startRenamingConversation(conversation)}
+                                className="rounded-lg p-1.5 text-white/35 transition hover:bg-white/8 hover:text-white/70"
+                                aria-label="Renombrar conversacion"
+                              >
+                                <PencilLine className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteConversation(conversation.id)}
+                                disabled={isActing}
+                                className="rounded-lg p-1.5 text-white/35 transition hover:bg-red-500/10 hover:text-red-200"
+                                aria-label="Borrar conversacion"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : selectedAgent && conversationsForSelectedAgent.length > 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-3 py-4 text-center text-xs text-white/40">
+                  No hay conversaciones que coincidan con esa busqueda.
+                </div>
+              ) : selectedAgent ? (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-3 py-4 text-center text-xs text-white/40">
+                  Todavia no hay conversaciones para este agente.
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -680,9 +1204,16 @@ export function DashboardClient({
                   <span className="text-xs text-white/70">Agente activo</span>
                 </div>
                 <ChevronRight className="h-3.5 w-3.5 text-white/20" />
-                <span className="text-sm font-medium text-white/80">
-                  {selectedAgent.name}
-                </span>
+                <div>
+                  <span className="text-sm font-medium text-white/80">
+                    {selectedAgent.name}
+                  </span>
+                  {selectedConversation ? (
+                    <p className="text-xs text-white/35">
+                      {formatConversationTitle(selectedConversation.title)}
+                    </p>
+                  ) : null}
+                </div>
               </div>
               <span className="text-xs text-white/35">
                 {currentMessages.length} mensajes

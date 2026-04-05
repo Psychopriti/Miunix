@@ -124,6 +124,7 @@ export type Database = {
           id: string;
           profile_id: string;
           agent_id: string;
+          conversation_id: string | null;
           input_data: Json;
           output_data: Json | null;
           status: ExecutionStatus;
@@ -133,6 +134,7 @@ export type Database = {
           id?: string;
           profile_id: string;
           agent_id: string;
+          conversation_id?: string | null;
           input_data?: Json;
           output_data?: Json | null;
           status?: ExecutionStatus;
@@ -142,10 +144,41 @@ export type Database = {
           id?: string;
           profile_id?: string;
           agent_id?: string;
+          conversation_id?: string | null;
           input_data?: Json;
           output_data?: Json | null;
           status?: ExecutionStatus;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      agent_conversations: {
+        Row: {
+          id: string;
+          profile_id: string;
+          agent_id: string;
+          title: string;
+          last_message_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          agent_id: string;
+          title?: string;
+          last_message_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          agent_id?: string;
+          title?: string;
+          last_message_at?: string;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -187,6 +220,7 @@ export type Database = {
           rating: number;
           review_text: string | null;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -195,6 +229,7 @@ export type Database = {
           rating: number;
           review_text?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           id?: string;
@@ -203,6 +238,7 @@ export type Database = {
           rating?: number;
           review_text?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };

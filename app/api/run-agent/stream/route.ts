@@ -1,36 +1,55 @@
 import { executeAgentWithProgress, AgentExecutionError } from "@/ai/agent-runner";
-import { ensureProfileForUser } from "@/lib/auth";
-import { createServerSupabaseClient } from "@/lib/supabase";
+import {
+  jsonError,
+  parseJsonBody,
+  requireAuthenticatedProfile,
+} from "@/lib/api";
 
 function encodeSseEvent(event: string, payload: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
 }
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabaseClient();
-  const userResult = await supabase.auth.getUser();
+  const auth = await requireAuthenticatedProfile();
 
-  if (userResult.error || !userResult.data.user) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "Unauthorized",
-      }),
-      {
-        status: 401,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      },
-    );
+  if (auth.errorResponse || !auth.profile) {
+    return auth.errorResponse ?? jsonError({ error: "Unauthorized", status: 401 });
   }
 
-  const profile = await ensureProfileForUser(userResult.data.user);
-  const body = await request.json();
+  const parsedBody = await parseJsonBody<{
+    agentId?: unknown;
+    agentSlug?: unknown;
+    conversationId?: unknown;
+    input?: unknown;
+  }>(request);
+
+  if (parsedBody.errorResponse || !parsedBody.data) {
+    return parsedBody.errorResponse ?? jsonError({ error: "Invalid JSON", status: 400 });
+  }
+
+  const body = parsedBody.data;
   const agentId = typeof body.agentId === "string" ? body.agentId.trim() : "";
   const agentSlug =
     typeof body.agentSlug === "string" ? body.agentSlug.trim() : "";
+  const conversationId =
+    typeof body.conversationId === "string"
+      ? body.conversationId.trim()
+      : "";
   const input = typeof body.input === "string" ? body.input : "";
+
+  if (!agentId && !agentSlug) {
+    return jsonError({
+      error: "agentId or agentSlug is required.",
+      status: 400,
+    });
+  }
+
+  if (!input.trim()) {
+    return jsonError({
+      error: "input is required.",
+      status: 400,
+    });
+  }
 
   const encoder = new TextEncoder();
 
@@ -46,9 +65,10 @@ export async function POST(request: Request) {
         });
 
         const result = await executeAgentWithProgress({
-          profileId: profile.id,
+          profileId: auth.profile.id,
           agentId: agentId || undefined,
           agentSlug: agentSlug || undefined,
+          conversationId: conversationId || undefined,
           input,
           onProgress: async (progressEvent) => {
             send("progress", progressEvent);
@@ -62,6 +82,7 @@ export async function POST(request: Request) {
             status: result.execution.status,
             created_at: result.execution.created_at,
           },
+          conversationId: result.conversationId,
           metadata: result.metadata ?? null,
         });
       } catch (error) {

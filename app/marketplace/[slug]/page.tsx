@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Star } from "lucide-react";
 import { getPublishedAgentBySlug, listOwnedAgentIds } from "@/ai/agent-runner";
+import { getAgentReviewComposer, listAgentReviews } from "@/ai/agent-reviews";
 import { SiteHeader } from "@/components/layout/site-header";
 import { getCurrentProfile } from "@/lib/auth";
 import { featuredAgents, getAgentBySlug } from "@/lib/agents";
 import { AgentAcquireButton } from "./agent-acquire-button";
+import { AgentReviewsSection } from "./agent-reviews-section";
 
 type AgentDetailPageProps = {
   params: Promise<{
@@ -34,7 +36,12 @@ export default async function AgentDetailPage({
   }
 
   const profile = await getCurrentProfile();
-  const ownedAgentIds = profile ? await listOwnedAgentIds(profile.id) : new Set();
+  const [ownedAgentIds, reviewComposer, reviews] = await Promise.all([
+    profile ? listOwnedAgentIds(profile.id) : Promise.resolve(new Set<string>()),
+    getAgentReviewComposer(publishedAgent.id, profile?.id),
+    listAgentReviews(publishedAgent.id, profile?.id),
+  ]);
+  const averageRating = Number(publishedAgent.average_rating);
 
   return (
     <main className="min-h-screen bg-[#050505] text-white">
@@ -68,6 +75,20 @@ export default async function AgentDetailPage({
                 <h1 className="max-w-3xl text-balance text-[2.7rem] font-medium leading-[0.95] tracking-[-0.065em] text-white sm:text-[4rem]">
                   {agent.title}
                 </h1>
+                <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-white/70">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
+                    <Star className="size-4 fill-[#d9ff00] text-[#d9ff00]" />
+                    <span>
+                      {publishedAgent.total_reviews > 0
+                        ? `${averageRating.toFixed(1)} de 5`
+                        : "Sin rating aun"}
+                    </span>
+                  </div>
+                  <span className="text-white/40">
+                    {publishedAgent.total_reviews} review
+                    {publishedAgent.total_reviews === 1 ? "" : "s"} publicadas
+                  </span>
+                </div>
 
                 <div className="mt-6 grid gap-4 md:grid-cols-3">
                   {agent.benefits.map((benefit) => (
@@ -126,6 +147,18 @@ export default async function AgentDetailPage({
                 </div>
               </aside>
             </div>
+
+            <AgentReviewsSection
+              agentId={publishedAgent.id}
+              agentName={agent.title}
+              averageRating={averageRating}
+              totalReviews={publishedAgent.total_reviews}
+              reviews={reviews}
+              existingReview={reviewComposer.existingReview}
+              isAuthenticated={Boolean(profile)}
+              canReview={reviewComposer.canReview}
+              hasPurchased={reviewComposer.hasPurchased}
+            />
           </section>
         </div>
       </section>

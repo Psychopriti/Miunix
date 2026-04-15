@@ -1,5 +1,4 @@
 import Link from "next/link";
-
 import { AuthSessionControls } from "@/components/auth/auth-session-controls";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 
@@ -30,7 +29,7 @@ export async function SiteHeader({ currentPath }: SiteHeaderProps) {
         className="w-fit font-heading text-[1.7rem] uppercase tracking-[-0.04em] !text-[#D7F205]"
         style={{ color: "#D7F205" }}
       >
-        Agent Flow
+        Miunix
       </Link>
 
       <nav className="flex justify-center lg:flex-1">

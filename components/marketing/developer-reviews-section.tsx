@@ -78,7 +78,7 @@ export function DeveloperReviewsSection({
         <div className="mt-8 rounded-[1.2rem] border border-white/10 bg-white/[0.03] p-4">
           <p className="text-sm leading-6 text-white/70">
             Estas reseñas resumen la experiencia de equipos que ya trabajaron con
-            este developer dentro de AgentFlow.
+            este developer dentro de Miunix.
           </p>
         </div>
       </div>

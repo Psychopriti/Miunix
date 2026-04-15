@@ -1,6 +1,6 @@
-# AgentFlow
+# Miunix
 
-Base inicial de AgentFlow construida sobre Next.js con App Router, TypeScript y Tailwind CSS.
+Base inicial de Miunix construida sobre Next.js con App Router, TypeScript y Tailwind CSS.
 
 ## Stack
 

@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: "AgentFlow",
+  name: "Miunix",
   description:
     "Base inicial para un flujo de agentes con Next.js App Router, TypeScript y Tailwind CSS.",
   url: "http://localhost:3000",

@@ -148,7 +148,7 @@ async function searchWithDuckDuckGo(query: string, limit: number) {
     `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
     {
       headers: {
-        "User-Agent": "Mozilla/5.0 AgentFlow/1.0",
+        "User-Agent": "Mozilla/5.0 Miunix/1.0",
       },
     },
   );
@@ -279,7 +279,7 @@ export async function extractCompanyPage(
 
   const response = await fetch(normalizedUrl, {
     headers: {
-      "User-Agent": "Mozilla/5.0 AgentFlow/1.0",
+      "User-Agent": "Mozilla/5.0 Miunix/1.0",
       Accept: "text/html,application/xhtml+xml",
     },
   });

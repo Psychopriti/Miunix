@@ -81,7 +81,7 @@ function mapApprovedAgent(agent: AgentRow): DeveloperMarketplaceAgent {
     shortDescription:
       agent.short_description ??
       featuredAgent?.shortDescription ??
-      "Agente aprobado y publicado en AgentFlow.",
+      "Agente aprobado y publicado en Miunix.",
     averageRating: Number(agent.average_rating),
     totalReviews: agent.total_reviews,
     variant: (featuredAgent?.slug ?? "developer") as
@@ -159,15 +159,15 @@ export async function listMarketplaceDevelopers() {
           profileId: profile.id,
           slug: getDeveloperSlug(profile),
           name,
-          role: "Developer verificado en AgentFlow",
+          role: "Developer verificado en Miunix",
           shortDescription:
             approvedAgents[0]?.shortDescription ??
-            "Publica agentes aprobados dentro del marketplace de AgentFlow.",
+            "Publica agentes aprobados dentro del marketplace de Miunix.",
           heroDescription:
             approvedAgents.length === 1
-              ? `${name} tiene 1 agente aprobado y publicado dentro de AgentFlow.`
-              : `${name} tiene ${approvedAgents.length} agentes aprobados y publicados dentro de AgentFlow.`,
-          taglinePrimary: "Agentes aprobados por AgentFlow",
+              ? `${name} tiene 1 agente aprobado y publicado dentro de Miunix.`
+              : `${name} tiene ${approvedAgents.length} agentes aprobados y publicados dentro de Miunix.`,
+          taglinePrimary: "Agentes aprobados por Miunix",
           taglineSecondary:
             approvedAgents.length === 1
               ? "1 agente publicado"

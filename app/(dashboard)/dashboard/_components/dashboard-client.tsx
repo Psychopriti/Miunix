@@ -15,6 +15,7 @@ import {
   Trash2,
   User,
 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import type { ReactNode } from "react";
 
 import type {
@@ -119,10 +120,13 @@ function AgentCard({
   onSelect: () => void;
 }) {
   return (
-    <button
+    <motion.button
       type="button"
       onClick={onSelect}
       aria-pressed={isSelected}
+      whileHover={{ x: 2 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: "spring", stiffness: 400, damping: 28 }}
       className={[
         "w-full rounded-2xl border p-3 text-left transition-all duration-200",
         "hover:border-purple-500/40 hover:bg-white/3",
@@ -149,11 +153,18 @@ function AgentCard({
           </p>
         </div>
 
-        {isSelected ? (
-          <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-purple-400" />
-        ) : null}
+        <AnimatePresence>
+          {isSelected && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-purple-400"
+            />
+          )}
+        </AnimatePresence>
       </div>
-    </button>
+    </motion.button>
   );
 }
 
@@ -357,7 +368,10 @@ function MessageBubble({
   const hasProgress = !!message.progressItems?.length;
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       className={["flex gap-3", isUser ? "flex-row-reverse" : "flex-row"].join(
         " ",
       )}
@@ -435,7 +449,7 @@ function MessageBubble({
           <span>{formatTimestamp(message.timestamp)}</span>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -1053,18 +1067,24 @@ export function DashboardClient({
               Mis Agentes
             </p>
             <div className="flex flex-col gap-1.5">
-              {agents.map((agent) => (
-                <AgentCard
+              {agents.map((agent, i) => (
+                <motion.div
                   key={agent.id}
-                  agent={agent}
-                  isSelected={selectedAgentSlug === agent.slug}
-                  conversationCount={
-                    conversations.filter(
-                      (conversation) => conversation.agentSlug === agent.slug,
-                    ).length
-                  }
-                  onSelect={() => handleSelectAgent(agent.slug)}
-                />
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: i * 0.06, ease: "easeOut" }}
+                >
+                  <AgentCard
+                    agent={agent}
+                    isSelected={selectedAgentSlug === agent.slug}
+                    conversationCount={
+                      conversations.filter(
+                        (conversation) => conversation.agentSlug === agent.slug,
+                      ).length
+                    }
+                    onSelect={() => handleSelectAgent(agent.slug)}
+                  />
+                </motion.div>
               ))}
             </div>
 
@@ -1089,7 +1109,8 @@ export function DashboardClient({
               </div>
 
               {selectedAgent && filteredConversationsForSelectedAgent.length > 0 ? (
-                <div className="flex flex-col gap-2">
+                <AnimatePresence initial={false}>
+                  <div className="flex flex-col gap-2">
                   {filteredConversationsForSelectedAgent.map((conversation) => {
                     const isSelected = selectedConversation?.id === conversation.id;
                     const isRenaming = renamingConversationId === conversation.id;
@@ -1099,13 +1120,17 @@ export function DashboardClient({
                     );
 
                     return (
-                      <div
+                      <motion.div
                         key={conversation.id}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.22, ease: "easeOut" }}
                         className={[
-                          "rounded-2xl border px-3 py-3 transition",
+                          "rounded-2xl border px-3 py-3 transition cursor-pointer",
                           isSelected
                             ? "border-purple-500/45 bg-purple-500/10"
-                            : "border-white/8 bg-white/[0.025]",
+                            : "border-white/8 bg-white/[0.025] hover:border-white/16 hover:bg-white/[0.04]",
                         ].join(" ")}
                       >
                         <div className="flex items-start gap-2">
@@ -1169,10 +1194,11 @@ export function DashboardClient({
                             </div>
                           ) : null}
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
-                </div>
+                  </div>
+                </AnimatePresence>
               ) : selectedAgent && conversationsForSelectedAgent.length > 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-3 py-4 text-center text-xs text-white/40">
                   No hay conversaciones que coincidan con esa busqueda.
@@ -1294,10 +1320,13 @@ export function DashboardClient({
                 }}
               />
 
-              <button
+              <motion.button
                 type="button"
                 onClick={() => void handleSend()}
                 disabled={!inputValue.trim() || isSending || !selectedAgent}
+                whileHover={inputValue.trim() && !isSending && selectedAgent ? { scale: 1.1 } : {}}
+                whileTap={inputValue.trim() && !isSending && selectedAgent ? { scale: 0.88 } : {}}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
                 className={[
                   "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl transition-all duration-150",
                   inputValue.trim() && !isSending && selectedAgent
@@ -1307,7 +1336,7 @@ export function DashboardClient({
                 aria-label="Enviar mensaje"
               >
                 <Send className="h-3.5 w-3.5" />
-              </button>
+              </motion.button>
             </div>
 
             <p className="mt-2 text-center text-[10px] text-white/20">
@@ -1334,7 +1363,7 @@ function DashboardHeader({ userEmail }: { userEmail?: string | null }) {
         href="/"
         className="font-heading text-xl uppercase tracking-tight text-[#D7F205]"
       >
-        Agent Flow
+        Miunix
       </Link>
 
       <nav className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/4 px-2 py-1.5 backdrop-blur md:flex">

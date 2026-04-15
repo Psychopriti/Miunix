@@ -591,7 +591,7 @@ export async function listAgents() {
     cover_image_url: agent.cover_image_url,
     ownerLabel:
       agent.owner_type === "platform"
-        ? "AgentFlow"
+        ? "Miunix"
         : profilesById.get(agent.owner_profile_id ?? "")?.full_name ??
           profilesById.get(agent.owner_profile_id ?? "")?.email ??
           "Developer",
@@ -656,7 +656,7 @@ export async function listAccessibleAgents(profileId: string) {
       cover_image_url: agent.cover_image_url,
       ownerLabel:
         agent.owner_type === "platform"
-          ? "AgentFlow"
+          ? "Miunix"
           : profilesById.get(agent.owner_profile_id ?? "")?.full_name ??
             profilesById.get(agent.owner_profile_id ?? "")?.email ??
             "Developer",

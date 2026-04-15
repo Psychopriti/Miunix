@@ -213,6 +213,32 @@ function isLeadSourcingRequest(agent: AgentRunnerInput, input: string) {
   );
 }
 
+function isMarketingEvidenceRequest(agent: AgentRunnerInput, input: string) {
+  if (agent.slug !== "marketing-content") {
+    return false;
+  }
+
+  return /(competidor|competitors?|landing page|pagina|p[aá]gina|sitio web|website|homepage|copy actual|copy de|brand|marca|empresa|ads?|anuncio|funnel|mensajes?)/i.test(
+    input,
+  );
+}
+
+function isResearchEvidenceRequest(agent: AgentRunnerInput, input: string) {
+  if (agent.slug !== "research") {
+    return false;
+  }
+
+  return /(competidor|competitors?|mercado|market|pricing|posicionamiento|positioning|empresa|companies|actual|202[0-9]|tendencia|trend|landscape|segmento|nicho|web|website|sitio|p[aá]gina)/i.test(
+    input,
+  );
+}
+
+function isNamedCompetitorComparison(input: string) {
+  return /(hubspot|pipedrive|zoho|salesforce|competidor|competitors?|vs\.?|versus|compare|compara|posicionamiento)/i.test(
+    input,
+  );
+}
+
 function buildRuntimeSystemPrompt(agent: AgentRunnerInput, input: string) {
   const systemPrompt = getPlatformAgentSystemPrompt(agent.slug);
 
@@ -220,22 +246,76 @@ function buildRuntimeSystemPrompt(agent: AgentRunnerInput, input: string) {
     return null;
   }
 
-  if (!isLeadSourcingRequest(agent, input)) {
-    return systemPrompt;
+  if (isLeadSourcingRequest(agent, input)) {
+    return [
+      systemPrompt,
+      "",
+      "Runtime sourcing instructions:",
+      "- This request requires real company sourcing, not generic strategy advice.",
+      "- You must use multi_query_company_search or web_company_search before answering.",
+      "- You should inspect promising pages with web_page_extractor when possible.",
+      "- You must use company_prospect_scorer before the final answer when comparing multiple sourced companies.",
+      "- Exclude any company marked or inferred as adjacent_or_competitor unless the user explicitly asked for vendors, software, or competitors.",
+      "- Bias your searches toward operational service businesses, not CRM vendors, WhatsApp tools, agencies, or automation providers.",
+      "- Return the best real companies you actually found, even if the list is incomplete.",
+      "- Include a source URL for every company whenever one is available.",
+      "- If signal quality varies, include confidence labels such as alta, media, or baja.",
+      "- Do not answer with generic suggestions like 'use LinkedIn' or 'check directories' unless the user explicitly asked for strategy instead of sourced companies.",
+    ].join("\n");
   }
 
-  return [
-    systemPrompt,
-    "",
-    "Runtime sourcing instructions:",
-    "- This request requires real company sourcing, not generic strategy advice.",
-    "- You must use multi_query_company_search or web_company_search before answering.",
-    "- You should inspect promising pages with web_page_extractor when possible.",
-    "- Return the best real companies you actually found, even if the list is incomplete.",
-    "- Include a source URL for every company whenever one is available.",
-    "- If signal quality varies, include confidence labels such as alta, media, or baja.",
-    "- Do not answer with generic suggestions like 'use LinkedIn' or 'check directories' unless the user explicitly asked for strategy instead of sourced companies.",
-  ].join("\n");
+  if (isMarketingEvidenceRequest(agent, input)) {
+    const competitorInstruction = isNamedCompetitorComparison(input)
+      ? [
+          "- This prompt names specific competitors or comparison targets.",
+          "- You must inspect at least one official page for each named company before making comparison claims.",
+          "- Do not compare named competitors from memory alone.",
+        ]
+      : [];
+
+    return [
+      systemPrompt,
+      "",
+      "Runtime marketing instructions:",
+      "- If the request references a real company, page, competitor, existing copy, or market context, inspect evidence before writing whenever possible.",
+      "- Use web_company_search or multi_query_company_search to locate the relevant company or competitor pages when the user did not provide a URL.",
+      "- Use web_page_extractor to inspect landing pages, product pages, or competitor pages when those pages will improve the messaging.",
+      ...competitorInstruction,
+      "- Use messaging_evidence_extractor to separate observed claims, proof, and CTA signals from your own interpretation.",
+      "- Use competitive_gap_analyzer when the task involves differentiation, white-space, or competitor comparison.",
+      "- Use offer_outcome_mapper when the offer needs sharper translation from features into buyer outcomes.",
+      "- The final answer must stay in the user's language even if the source pages are in another language.",
+      "- Do not rely on generic copy instincts if concrete market or page evidence is available.",
+    ].join("\n");
+  }
+
+  if (isResearchEvidenceRequest(agent, input)) {
+    const competitorInstruction = isNamedCompetitorComparison(input)
+      ? [
+          "- This prompt names specific competitors or comparison targets.",
+          "- You must inspect at least one official page for each named company before comparing them.",
+          "- Do not compare named competitors from memory alone.",
+        ]
+      : [];
+
+    return [
+      systemPrompt,
+      "",
+      "Runtime research instructions:",
+      "- This request likely benefits from current market evidence or real company context.",
+      "- Use research_framework_selector early if the research frame is broad or ambiguous.",
+      "- Use web_company_search or multi_query_company_search to locate relevant companies, competitors, or market pages when current evidence matters.",
+      "- Use web_page_extractor to inspect official pages, pricing pages, or positioning pages before making strategic claims.",
+      ...competitorInstruction,
+      "- Use messaging_evidence_extractor to distinguish observed market signals from your own inference.",
+      "- Use decision_matrix_builder when the user is comparing options and you need a clearer ranking.",
+      "- Use competitive_gap_analyzer when competitor positioning or strategic white space is part of the question.",
+      "- The final answer must stay in the user's language even if the evidence comes from English-language pages.",
+      "- Do not answer as a generic memo if direct evidence can materially improve the recommendation.",
+    ].join("\n");
+  }
+
+  return systemPrompt;
 }
 
 function extractTextFromMessageContent(content: unknown) {

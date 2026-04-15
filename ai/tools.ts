@@ -713,6 +713,169 @@ const campaignAngleTool = tool(
   },
 );
 
+const offerOutcomeMapperTool = tool(
+  async ({
+    offer,
+    audience,
+    currentSituation,
+  }: {
+    offer: string;
+    audience: string;
+    currentSituation?: string;
+  }) => {
+    return stringify({
+      offer,
+      audience,
+      currentSituation: currentSituation ?? "not specified",
+      likelyBuyerJobs: [
+        "Reduce friction in a revenue-bearing workflow",
+        "Improve speed, visibility, or consistency in execution",
+        "Get results without adding coordination overhead",
+      ],
+      outcomeTranslation: [
+        "Faster response or turnaround time",
+        "Fewer manual handoffs and copy-paste steps",
+        "More control and visibility for the team or owner",
+        "Less leakage between inquiry, action, and follow-up",
+      ],
+      proofAngles: [
+        "What changes in the team's day-to-day workflow",
+        "What bottleneck gets removed first",
+        "Why this is easier to adopt than the status quo",
+      ],
+      objectionPatterns: [
+        "This sounds useful but hard to implement",
+        "We already handle this manually well enough",
+        "I am not sure the problem is large enough to prioritize",
+      ],
+    });
+  },
+  {
+    name: "offer_outcome_mapper",
+    description:
+      "Translates an offer into concrete buyer jobs, outcomes, proof angles, and likely objections.",
+    schema: z.object({
+      offer: z.string().describe("The offer, product, or service being positioned."),
+      audience: z.string().describe("The target audience or buyer profile."),
+      currentSituation: z
+        .string()
+        .optional()
+        .describe("Optional current workflow, pain, or status quo context."),
+    }),
+  },
+);
+
+const messagingEvidenceExtractorTool = tool(
+  async ({
+    sourceName,
+    sourceText,
+    audience,
+  }: {
+    sourceName: string;
+    sourceText: string;
+    audience?: string;
+  }) => {
+    const normalizedAudience = audience ?? "not specified";
+    const excerpt = sourceText.slice(0, 3500);
+
+    return stringify({
+      sourceName,
+      audience: normalizedAudience,
+      evidenceSummary: [
+        "Core promise and positioning signals visible in the source",
+        "Proof, trust, or credibility signals explicitly present",
+        "Likely CTA path or conversion intent suggested by the copy",
+      ],
+      extractionHeuristics: [
+        `Review this source through the lens of ${normalizedAudience}`,
+        "Separate explicit claims from implied messaging",
+        "Flag where the message is strong, generic, or missing proof",
+      ],
+      sourceExcerpt: excerpt,
+    });
+  },
+  {
+    name: "messaging_evidence_extractor",
+    description:
+      "Structures evidence from a landing page, ad, or competitor copy so the agent can analyze messaging more rigorously.",
+    schema: z.object({
+      sourceName: z.string().describe("Name of the company, page, or asset being analyzed."),
+      sourceText: z
+        .string()
+        .describe("Raw text extracted from the page or provided by the user."),
+      audience: z
+        .string()
+        .optional()
+        .describe("Optional audience used to interpret the messaging."),
+    }),
+  },
+);
+
+const competitiveGapAnalyzerTool = tool(
+  async ({
+    subject,
+    competitors,
+    focus,
+  }: {
+    subject: string;
+    competitors: Array<{
+      name: string;
+      positioning?: string;
+      strengths?: string[];
+    }>;
+    focus?: string;
+  }) => {
+    return stringify({
+      subject,
+      focus: focus ?? "general positioning",
+      competitors: competitors.map((competitor) => ({
+        name: competitor.name,
+        positioning: competitor.positioning ?? "not specified",
+        strengths: competitor.strengths ?? [],
+      })),
+      whitespaceOpportunities: [
+        "A sharper promise tied to a specific workflow outcome",
+        "A clearer proof path instead of generic value claims",
+        "A more specific buyer or use-case focus",
+      ],
+      comparisonQuestions: [
+        "What does each competitor appear to optimize for first?",
+        "Which claims sound common across the category?",
+        "Where is the clearest opportunity to sound more concrete or more credible?",
+      ],
+    });
+  },
+  {
+    name: "competitive_gap_analyzer",
+    description:
+      "Finds positioning white space, generic category claims, and strategic differentiation opportunities across competitors.",
+    schema: z.object({
+      subject: z.string().describe("The product, offer, or company being positioned."),
+      competitors: z
+        .array(
+          z.object({
+            name: z.string().describe("Competitor name."),
+            positioning: z
+              .string()
+              .optional()
+              .describe("Optional observed positioning or tagline."),
+            strengths: z
+              .array(z.string())
+              .optional()
+              .describe("Optional observed strengths or themes."),
+          }),
+        )
+        .min(1)
+        .max(8)
+        .describe("Competitors to compare."),
+      focus: z
+        .string()
+        .optional()
+        .describe("Optional focus such as pricing, messaging, GTM, or differentiation."),
+    }),
+  },
+);
+
 const copyChannelSpecTool = tool(
   async ({
     channel,
@@ -753,14 +916,36 @@ const agentToolsBySlug = {
     leadProfileCanvasTool,
     leadSegmentPrioritizerTool,
     leadPainTranslatorTool,
+    offerOutcomeMapperTool,
+    signalScannerTool,
+    decisionMatrixTool,
     outreachPlannerTool,
     webCompanySearchTool,
     multiQueryCompanySearchTool,
     webPageExtractorTool,
     companyProspectScorerTool,
   ],
-  "marketing-content": [campaignAngleTool, copyChannelSpecTool],
-  research: [researchFrameworkTool, signalScannerTool, decisionMatrixTool],
+  "marketing-content": [
+    campaignAngleTool,
+    copyChannelSpecTool,
+    offerOutcomeMapperTool,
+    messagingEvidenceExtractorTool,
+    competitiveGapAnalyzerTool,
+    signalScannerTool,
+    webCompanySearchTool,
+    webPageExtractorTool,
+    multiQueryCompanySearchTool,
+  ],
+  research: [
+    researchFrameworkTool,
+    signalScannerTool,
+    decisionMatrixTool,
+    competitiveGapAnalyzerTool,
+    messagingEvidenceExtractorTool,
+    webCompanySearchTool,
+    webPageExtractorTool,
+    multiQueryCompanySearchTool,
+  ],
 } as const;
 
 export function getAgentTools(slug: string) {

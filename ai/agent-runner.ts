@@ -121,6 +121,24 @@ const builtInAgentRewriteRubric: Partial<Record<string, string[]>> = {
     "Prefer operational buyer candidates over competitors, agencies, CRM vendors, chatbot vendors, or automation providers.",
     "When sourcing companies, clearly separate observed signals from inferred pains and lower confidence for directory-like sources.",
   ],
+  "marketing-content": [
+    "Make the strategy and copy feel tailored to the specific offer, buyer, and channel instead of sounding generic.",
+    "Sharpen the positioning before writing louder copy; do not hide weak strategy behind polished language.",
+    "Translate AI, automation, or software features into concrete workflow or business outcomes.",
+    "Make headlines and hooks meaningfully different in angle, not cosmetic rewrites of the same idea.",
+    "Keep proof, objections, tone, and CTA aligned to the buyer's stage of awareness and commitment.",
+    "Avoid hype, invented claims, vague empowerment language, and interchangeable startup copy.",
+    "Make the final copy usable by a real founder or marketer without major rewriting.",
+  ],
+  research: [
+    "Turn the topic into a decision-ready analysis instead of a generic summary.",
+    "Prioritize the insights, tradeoffs, and risks that most affect what the user should do next.",
+    "Clearly separate observed evidence from informed inference and recommendation.",
+    "If the user is comparing options, make the ranking and tradeoffs explicit instead of leaving them implied.",
+    "Avoid encyclopedic trend lists, vague caveats, and conclusions that are not earned by the analysis.",
+    "Translate AI, automation, or software themes into concrete business, workflow, or adoption implications when relevant.",
+    "Make the recommendation specific enough that a founder or operator could act on it immediately.",
+  ],
 };
 
 async function findProfile(profileId: string) {
@@ -476,7 +494,31 @@ function readJsonTextValue(
   return typeof candidate === "string" ? candidate : null;
 }
 
-function shouldPolishBuiltInOutput(agent: AgentRunnerInput, output: string) {
+function looksLikeSpanish(text: string) {
+  return /\b(el|la|los|las|para|con|una|unas|unos|que|por|donde|porque|automatizacion|seguimiento|empresa|empresas)\b/i.test(
+    text,
+  );
+}
+
+function looksHeavilyEnglish(text: string) {
+  const matches = text.match(
+    /\b(the|and|for|with|your|small|business|goal|offer|audience|campaign|promise|service|solution)\b/gi,
+  );
+
+  return (matches?.length ?? 0) >= 8;
+}
+
+function isCompetitorComparisonPrompt(text: string) {
+  return /(hubspot|pipedrive|zoho|salesforce|competidor|competitors?|vs\.?|versus|compare|compara|posicionamiento)/i.test(
+    text,
+  );
+}
+
+function shouldPolishBuiltInOutput(
+  agent: AgentRunnerInput,
+  input: string,
+  output: string,
+) {
   const expectations = builtInAgentOutputExpectations[agent.slug];
 
   if (!expectations) {
@@ -493,7 +535,23 @@ function shouldPolishBuiltInOutput(agent: AgentRunnerInput, output: string) {
     normalizedOutput.includes(heading),
   ).length;
 
-  return matchedHeadings < Math.max(2, expectations.length - 1);
+  if (matchedHeadings < Math.max(2, expectations.length - 1)) {
+    return true;
+  }
+
+  if (looksLikeSpanish(input) && looksHeavilyEnglish(normalizedOutput)) {
+    return true;
+  }
+
+  if (
+    (agent.slug === "marketing-content" || agent.slug === "research") &&
+    isCompetitorComparisonPrompt(input) &&
+    !/https?:\/\//i.test(normalizedOutput)
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 async function polishBuiltInOutput(
@@ -994,7 +1052,7 @@ async function executeAgentInternal({
 
     if (
       agent.owner_type === "platform" &&
-      shouldPolishBuiltInOutput(agent, output)
+      shouldPolishBuiltInOutput(agent, normalizedInput, output)
     ) {
       output = await polishBuiltInOutput(agent, normalizedInput, output);
     }

@@ -105,7 +105,7 @@ export function PricingFields({ defaultModel }: PricingFieldsProps) {
           Costo base estimado para {model}: ${guidance.baseModelCostUsd.toFixed(2)}
         </p>
         <p className="mt-2 leading-6">
-          Para agentes de pago, AgentFlow recomienda iniciar en ${guidance.recommendedPriceUsd.toFixed(2)} y no bajar de ${guidance.minimumPriceUsd.toFixed(2)}. Esta base luego sube si el agente usa varias tools externas.
+          Para agentes de pago, Miunix recomienda iniciar en ${guidance.recommendedPriceUsd.toFixed(2)} y no bajar de ${guidance.minimumPriceUsd.toFixed(2)}. Esta base luego sube si el agente usa varias tools externas.
         </p>
       </div>
     </>

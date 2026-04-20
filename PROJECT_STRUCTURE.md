@@ -1,4 +1,4 @@
-# AgentFlow Structure
+# Miunix Structure
 
 Estructura base sugerida para seguir creciendo el proyecto sin mezclar integraciones, UI y tipos.
 

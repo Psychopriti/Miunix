@@ -1,6 +1,8 @@
 import { listAgents } from "@/ai/agent-runner";
 import { SiteHeader } from "@/components/layout/site-header";
 import { getAgentBySlug } from "@/lib/agents";
+import { InView } from "@/components/ui/in-view";
+import { MarketplaceHeading } from "./marketplace-heading";
 import { MarketplaceCarousel } from "./marketplace-carousel";
 
 export default async function MarketplacePage() {
@@ -14,7 +16,7 @@ export default async function MarketplacePage() {
       description:
         agent.short_description ??
         builtInAgent?.shortDescription ??
-        "Agente publicado en AgentFlow.",
+        "Agente publicado en Miunix.",
       ownerLabel: agent.ownerLabel,
       averageRating: Number(agent.average_rating),
       totalReviews: agent.total_reviews,
@@ -33,14 +35,21 @@ export default async function MarketplacePage() {
           <SiteHeader currentPath="/marketplace" />
 
           <section className="flex flex-1 flex-col items-center justify-center pb-6 pt-12 sm:pt-16">
-            <h1 className="font-heading text-center text-[2.65rem] uppercase leading-none tracking-[-0.04em] text-white sm:text-[4.1rem]">
-              Agentes Destacados
-            </h1>
+            <MarketplaceHeading />
 
             {marketplaceItems.length === 0 ? (
-              <div className="mt-12 w-full max-w-2xl rounded-[1.5rem] border border-dashed border-white/12 bg-white/[0.02] px-6 py-8 text-center text-sm leading-6 text-white/58">
-                Todavia no hay agentes publicados en el marketplace.
-              </div>
+              <InView
+                variants={{
+                  hidden: { opacity: 0, y: 20 },
+                  visible: { opacity: 1, y: 0 },
+                }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                viewOptions={{ once: true }}
+              >
+                <div className="mt-12 w-full max-w-2xl rounded-[1.5rem] border border-dashed border-white/12 bg-white/[0.02] px-6 py-8 text-center text-sm leading-6 text-white/58">
+                  Todavia no hay agentes publicados en el marketplace.
+                </div>
+              </InView>
             ) : (
               <MarketplaceCarousel items={marketplaceItems} />
             )}

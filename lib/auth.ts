@@ -6,6 +6,7 @@ import type { Database } from "@/types/database";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 type ProfileRole = Database["public"]["Enums"]["profile_role"];
+type PremiumPlan = Database["public"]["Enums"]["premium_plan"];
 
 type UpsertProfileInput = {
   email: string | null;
@@ -147,4 +148,16 @@ export async function requireCurrentProfile() {
 
 export function getDefaultRouteForRole(role: ProfileRole) {
   return role === "admin" ? "/review-center" : "/dashboard";
+}
+
+export function isPremiumPlan(value: string | null): value is PremiumPlan {
+  return value === "starter" || value === "pro" || value === "scale";
+}
+
+export function isPremiumUser(profile: ProfileRow | null) {
+  return (
+    profile?.role === "user" &&
+    profile.is_premium &&
+    isPremiumPlan(profile.premium_plan)
+  );
 }

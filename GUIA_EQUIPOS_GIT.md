@@ -1,4 +1,4 @@
-# Guia de Trabajo en Equipo para AgentFlow
+# Guia de Trabajo en Equipo para Miunix
 
 Esta guia esta pensada para dos equipos:
 

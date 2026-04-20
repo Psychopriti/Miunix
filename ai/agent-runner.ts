@@ -121,6 +121,24 @@ const builtInAgentRewriteRubric: Partial<Record<string, string[]>> = {
     "Prefer operational buyer candidates over competitors, agencies, CRM vendors, chatbot vendors, or automation providers.",
     "When sourcing companies, clearly separate observed signals from inferred pains and lower confidence for directory-like sources.",
   ],
+  "marketing-content": [
+    "Make the strategy and copy feel tailored to the specific offer, buyer, and channel instead of sounding generic.",
+    "Sharpen the positioning before writing louder copy; do not hide weak strategy behind polished language.",
+    "Translate AI, automation, or software features into concrete workflow or business outcomes.",
+    "Make headlines and hooks meaningfully different in angle, not cosmetic rewrites of the same idea.",
+    "Keep proof, objections, tone, and CTA aligned to the buyer's stage of awareness and commitment.",
+    "Avoid hype, invented claims, vague empowerment language, and interchangeable startup copy.",
+    "Make the final copy usable by a real founder or marketer without major rewriting.",
+  ],
+  research: [
+    "Turn the topic into a decision-ready analysis instead of a generic summary.",
+    "Prioritize the insights, tradeoffs, and risks that most affect what the user should do next.",
+    "Clearly separate observed evidence from informed inference and recommendation.",
+    "If the user is comparing options, make the ranking and tradeoffs explicit instead of leaving them implied.",
+    "Avoid encyclopedic trend lists, vague caveats, and conclusions that are not earned by the analysis.",
+    "Translate AI, automation, or software themes into concrete business, workflow, or adoption implications when relevant.",
+    "Make the recommendation specific enough that a founder or operator could act on it immediately.",
+  ],
 };
 
 async function findProfile(profileId: string) {
@@ -151,8 +169,28 @@ async function findPurchasedAgentIds(profileId: string) {
   return new Set(result.data.map((purchase) => purchase.agent_id));
 }
 
+async function findOwnedPremiumAgentIds(profileId: string) {
+  const result = await supabaseAdmin
+    .from("agents")
+    .select("id")
+    .eq("owner_profile_id", profileId)
+    .eq("owner_type", "user")
+    .neq("status", "archived");
+
+  if (result.error) {
+    throw new AgentExecutionError(result.error.message, 500);
+  }
+
+  return new Set(result.data.map((agent) => agent.id));
+}
+
 export async function listOwnedAgentIds(profileId: string) {
-  return findPurchasedAgentIds(profileId);
+  const [purchasedAgentIds, ownedPremiumAgentIds] = await Promise.all([
+    findPurchasedAgentIds(profileId),
+    findOwnedPremiumAgentIds(profileId),
+  ]);
+
+  return new Set([...purchasedAgentIds, ...ownedPremiumAgentIds]);
 }
 
 async function findAgent({
@@ -210,6 +248,14 @@ function canExecuteAgent({
     return agent.status === "published" && agent.is_published && ownsAccess;
   }
 
+  if (agent.owner_type === "user") {
+    return (
+      profile.role === "user" &&
+      Boolean(profile.is_premium) &&
+      agent.owner_profile_id === profile.id
+    );
+  }
+
   return false;
 }
 
@@ -228,7 +274,7 @@ function resolvePrompt(agent: AgentRunnerInput, input: string) {
 
   if (!agent.prompt_template) {
     throw new AgentExecutionError(
-      "Developer agent is missing prompt_template.",
+      "Custom agent is missing prompt_template.",
       500,
     );
   }
@@ -476,7 +522,31 @@ function readJsonTextValue(
   return typeof candidate === "string" ? candidate : null;
 }
 
-function shouldPolishBuiltInOutput(agent: AgentRunnerInput, output: string) {
+function looksLikeSpanish(text: string) {
+  return /\b(el|la|los|las|para|con|una|unas|unos|que|por|donde|porque|automatizacion|seguimiento|empresa|empresas)\b/i.test(
+    text,
+  );
+}
+
+function looksHeavilyEnglish(text: string) {
+  const matches = text.match(
+    /\b(the|and|for|with|your|small|business|goal|offer|audience|campaign|promise|service|solution)\b/gi,
+  );
+
+  return (matches?.length ?? 0) >= 8;
+}
+
+function isCompetitorComparisonPrompt(text: string) {
+  return /(hubspot|pipedrive|zoho|salesforce|competidor|competitors?|vs\.?|versus|compare|compara|posicionamiento)/i.test(
+    text,
+  );
+}
+
+function shouldPolishBuiltInOutput(
+  agent: AgentRunnerInput,
+  input: string,
+  output: string,
+) {
   const expectations = builtInAgentOutputExpectations[agent.slug];
 
   if (!expectations) {
@@ -493,7 +563,23 @@ function shouldPolishBuiltInOutput(agent: AgentRunnerInput, output: string) {
     normalizedOutput.includes(heading),
   ).length;
 
-  return matchedHeadings < Math.max(2, expectations.length - 1);
+  if (matchedHeadings < Math.max(2, expectations.length - 1)) {
+    return true;
+  }
+
+  if (looksLikeSpanish(input) && looksHeavilyEnglish(normalizedOutput)) {
+    return true;
+  }
+
+  if (
+    (agent.slug === "marketing-content" || agent.slug === "research") &&
+    isCompetitorComparisonPrompt(input) &&
+    !/https?:\/\//i.test(normalizedOutput)
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 async function polishBuiltInOutput(
@@ -591,24 +677,24 @@ export async function listAgents() {
     cover_image_url: agent.cover_image_url,
     ownerLabel:
       agent.owner_type === "platform"
-        ? "AgentFlow"
+        ? "Miunix"
         : profilesById.get(agent.owner_profile_id ?? "")?.full_name ??
           profilesById.get(agent.owner_profile_id ?? "")?.email ??
-          "Developer",
+          (agent.owner_type === "user" ? "MIUNIX+ User" : "Developer"),
   })) satisfies AgentListItem[];
 }
 
 export async function listAccessibleAgents(profileId: string) {
-  const purchasedAgentIds = await findPurchasedAgentIds(profileId);
+  const accessibleAgentIds = await listOwnedAgentIds(profileId);
 
-  if (purchasedAgentIds.size === 0) {
+  if (accessibleAgentIds.size === 0) {
     return [] satisfies AgentListItem[];
   }
 
   const result = await supabaseAdmin
     .from("agents")
     .select("*")
-    .in("id", Array.from(purchasedAgentIds))
+    .in("id", Array.from(accessibleAgentIds))
     .eq("is_active", true)
     .order("name", { ascending: true });
 
@@ -656,10 +742,10 @@ export async function listAccessibleAgents(profileId: string) {
       cover_image_url: agent.cover_image_url,
       ownerLabel:
         agent.owner_type === "platform"
-          ? "AgentFlow"
+          ? "Miunix"
           : profilesById.get(agent.owner_profile_id ?? "")?.full_name ??
             profilesById.get(agent.owner_profile_id ?? "")?.email ??
-            "Developer",
+            (agent.owner_type === "user" ? "MIUNIX+ User" : "Developer"),
     })) satisfies AgentListItem[];
 }
 
@@ -808,7 +894,7 @@ export async function runAgent(
   }
 
   if (
-    agent.owner_type === "developer" &&
+    agent.owner_type !== "platform" &&
     Array.isArray(agent.tool_definitions) &&
     agent.tool_definitions.length > 0
   ) {
@@ -832,7 +918,7 @@ export async function runAgent(
 
   const response = await openai.chat.completions.create({
     model:
-      agent.owner_type === "developer" && agent.model
+      agent.owner_type !== "platform" && agent.model
         ? agent.model
         : OPENAI_QUALITY_MODEL,
     messages: [
@@ -854,15 +940,15 @@ export async function runAgent(
 
   return {
     output,
-      metadata: {
-        provider: "openai",
-        model:
-          agent.owner_type === "developer" && agent.model
-            ? agent.model
-            : OPENAI_QUALITY_MODEL,
-      },
-    };
-  }
+    metadata: {
+      provider: "openai",
+      model:
+        agent.owner_type !== "platform" && agent.model
+          ? agent.model
+          : OPENAI_QUALITY_MODEL,
+    },
+  };
+}
 
 async function createPendingExecution({
   agent,
@@ -994,7 +1080,7 @@ async function executeAgentInternal({
 
     if (
       agent.owner_type === "platform" &&
-      shouldPolishBuiltInOutput(agent, output)
+      shouldPolishBuiltInOutput(agent, normalizedInput, output)
     ) {
       output = await polishBuiltInOutput(agent, normalizedInput, output);
     }

@@ -126,3 +126,9 @@ a {
     @apply font-sans;
   }
 }
+
+/* Card border glow animation — replica del efecto CodePen ::before/::after */
+@keyframes card-border-shift {
+  0%   { background-position: top center; }
+  100% { background-position: bottom center; }
+}

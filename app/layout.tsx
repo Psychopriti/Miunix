@@ -16,6 +16,11 @@ export const metadata: Metadata = {
     template: `%s | ${siteConfig.name}`,
   },
   description: siteConfig.description,
+  icons: {
+    icon: "/brand/logo.png",
+    shortcut: "/brand/logo.png",
+    apple: "/brand/logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -24,7 +29,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`h-full font-sans antialiased ${anton.variable}`}>
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      className={`h-full font-sans antialiased ${anton.variable}`}
+    >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

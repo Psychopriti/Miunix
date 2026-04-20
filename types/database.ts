@@ -11,6 +11,20 @@ export type AgentOwnerType = "platform" | "developer";
 export type AgentStatus = "draft" | "published" | "archived";
 export type AgentPricingType = "free" | "one_time";
 export type ExecutionStatus = "pending" | "completed" | "failed";
+export type WorkflowOwnerType = "platform" | "developer";
+export type WorkflowStatus = "draft" | "published" | "archived";
+export type WorkflowPricingType = "free" | "one_time" | "subscription";
+export type WorkflowExecutionStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed";
+export type WorkflowStepRunStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "skipped";
 export type AgentReviewStatus =
   | "draft"
   | "ready_for_review"
@@ -267,6 +281,201 @@ export type Database = {
         };
         Relationships: [];
       };
+      workflows: {
+        Row: {
+          id: string;
+          slug: string;
+          name: string;
+          short_description: string | null;
+          description: string | null;
+          owner_type: WorkflowOwnerType;
+          owner_profile_id: string | null;
+          price: string;
+          currency: string;
+          pricing_type: WorkflowPricingType;
+          is_active: boolean;
+          is_published: boolean;
+          status: WorkflowStatus;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          slug: string;
+          name: string;
+          short_description?: string | null;
+          description?: string | null;
+          owner_type: WorkflowOwnerType;
+          owner_profile_id?: string | null;
+          price?: string;
+          currency?: string;
+          pricing_type?: WorkflowPricingType;
+          is_active?: boolean;
+          is_published?: boolean;
+          status?: WorkflowStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          slug?: string;
+          name?: string;
+          short_description?: string | null;
+          description?: string | null;
+          owner_type?: WorkflowOwnerType;
+          owner_profile_id?: string | null;
+          price?: string;
+          currency?: string;
+          pricing_type?: WorkflowPricingType;
+          is_active?: boolean;
+          is_published?: boolean;
+          status?: WorkflowStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      workflow_steps: {
+        Row: {
+          id: string;
+          workflow_id: string;
+          position: number;
+          agent_slug: string;
+          step_key: string;
+          title: string;
+          input_mapping: Json;
+          output_mapping: Json;
+          is_required: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workflow_id: string;
+          position: number;
+          agent_slug: string;
+          step_key: string;
+          title: string;
+          input_mapping?: Json;
+          output_mapping?: Json;
+          is_required?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          workflow_id?: string;
+          position?: number;
+          agent_slug?: string;
+          step_key?: string;
+          title?: string;
+          input_mapping?: Json;
+          output_mapping?: Json;
+          is_required?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      workflow_purchases: {
+        Row: {
+          id: string;
+          buyer_profile_id: string;
+          workflow_id: string;
+          purchase_price: string;
+          currency: string;
+          payment_status: PaymentStatus;
+          purchased_at: string;
+        };
+        Insert: {
+          id?: string;
+          buyer_profile_id: string;
+          workflow_id: string;
+          purchase_price: string;
+          currency?: string;
+          payment_status?: PaymentStatus;
+          purchased_at?: string;
+        };
+        Update: {
+          id?: string;
+          buyer_profile_id?: string;
+          workflow_id?: string;
+          purchase_price?: string;
+          currency?: string;
+          payment_status?: PaymentStatus;
+          purchased_at?: string;
+        };
+        Relationships: [];
+      };
+      workflow_executions: {
+        Row: {
+          id: string;
+          workflow_id: string;
+          profile_id: string;
+          status: WorkflowExecutionStatus;
+          input_data: Json;
+          shared_context: Json;
+          final_output: Json | null;
+          started_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          workflow_id: string;
+          profile_id: string;
+          status?: WorkflowExecutionStatus;
+          input_data?: Json;
+          shared_context?: Json;
+          final_output?: Json | null;
+          started_at?: string;
+          completed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          workflow_id?: string;
+          profile_id?: string;
+          status?: WorkflowExecutionStatus;
+          input_data?: Json;
+          shared_context?: Json;
+          final_output?: Json | null;
+          started_at?: string;
+          completed_at?: string | null;
+        };
+        Relationships: [];
+      };
+      workflow_step_runs: {
+        Row: {
+          id: string;
+          workflow_execution_id: string;
+          workflow_step_id: string;
+          agent_id: string | null;
+          status: WorkflowStepRunStatus;
+          input_data: Json;
+          output_data: Json | null;
+          started_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          workflow_execution_id: string;
+          workflow_step_id: string;
+          agent_id?: string | null;
+          status?: WorkflowStepRunStatus;
+          input_data?: Json;
+          output_data?: Json | null;
+          started_at?: string;
+          completed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          workflow_execution_id?: string;
+          workflow_step_id?: string;
+          agent_id?: string | null;
+          status?: WorkflowStepRunStatus;
+          input_data?: Json;
+          output_data?: Json | null;
+          started_at?: string;
+          completed_at?: string | null;
+        };
+        Relationships: [];
+      };
       agent_tool_secrets: {
         Row: {
           id: string;
@@ -339,6 +548,11 @@ export type Database = {
       agent_status: AgentStatus;
       agent_pricing_type: AgentPricingType;
       execution_status: ExecutionStatus;
+      workflow_owner_type: WorkflowOwnerType;
+      workflow_status: WorkflowStatus;
+      workflow_pricing_type: WorkflowPricingType;
+      workflow_execution_status: WorkflowExecutionStatus;
+      workflow_step_run_status: WorkflowStepRunStatus;
       agent_review_status: AgentReviewStatus;
       agent_test_run_status: AgentTestRunStatus;
       payment_status: PaymentStatus;

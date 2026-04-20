@@ -8,8 +8,11 @@ import type {
   DashboardAgent,
   DashboardChatHistory,
   DashboardConversation,
+  DashboardWorkflow,
+  DashboardWorkflowExecution,
 } from "@/lib/dashboard";
 import { createServerSupabaseClient } from "@/lib/supabase";
+import { listOwnedWorkflows, listWorkflowExecutionHistory } from "@/lib/workflows";
 
 import { DashboardClient } from "./_components/dashboard-client";
 
@@ -55,6 +58,27 @@ function buildChatHistory(
   }, {});
 }
 
+function extractTextFromJson(value: unknown) {
+  if (!value) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "text" in value &&
+    typeof value.text === "string"
+  ) {
+    return value.text;
+  }
+
+  return JSON.stringify(value, null, 2);
+}
+
 export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient();
   const {
@@ -71,10 +95,13 @@ export default async function DashboardPage() {
     redirect(getDefaultRouteForRole(profile.role));
   }
 
-  const [agents, conversations, executionHistory] = await Promise.all([
+  const [agents, conversations, executionHistory, workflows, workflowExecutions] =
+    await Promise.all([
     listAccessibleAgents(profile.id),
     listAgentConversations(profile.id),
     listExecutionHistory(profile.id),
+    listOwnedWorkflows(profile.id),
+    listWorkflowExecutionHistory(profile.id),
   ]);
 
   const dashboardAgents: DashboardAgent[] = agents.map((agent) => ({
@@ -86,10 +113,47 @@ export default async function DashboardPage() {
     totalRuns: agent.total_runs,
   }));
   const dashboardConversations: DashboardConversation[] = conversations;
+  const dashboardWorkflows: DashboardWorkflow[] = workflows.map((workflow) => ({
+    id: workflow.id,
+    slug: workflow.slug,
+    name: workflow.name,
+    shortDescription: workflow.shortDescription,
+    description: workflow.description,
+    deliverable: workflow.deliverable,
+    includedAgents: workflow.includedAgents,
+    steps: workflow.steps.map((step) => ({
+      id: step.id,
+      position: step.position,
+      title: step.title,
+      stepKey: step.step_key,
+      agentSlug: step.agent_slug,
+    })),
+  }));
+  const dashboardWorkflowExecutions: DashboardWorkflowExecution[] =
+    workflowExecutions.map((execution) => ({
+      id: execution.id,
+      workflowId: execution.workflowId,
+      workflowSlug: execution.workflowSlug,
+      workflowName: execution.workflowName,
+      status: execution.status,
+      startedAt: execution.startedAt,
+      completedAt: execution.completedAt,
+      finalOutputText: extractTextFromJson(execution.finalOutput),
+      stepRuns: execution.stepRuns.map((stepRun) => ({
+        id: stepRun.id,
+        stepKey: stepRun.stepKey,
+        title: stepRun.title,
+        agentSlug: stepRun.agentSlug,
+        status: stepRun.status,
+        outputText: extractTextFromJson(stepRun.outputData),
+      })),
+    }));
 
   return (
     <DashboardClient
       agents={dashboardAgents}
+      workflows={dashboardWorkflows}
+      initialWorkflowExecutions={dashboardWorkflowExecutions}
       initialConversations={dashboardConversations}
       initialChatHistory={buildChatHistory(executionHistory)}
       userEmail={user.email}

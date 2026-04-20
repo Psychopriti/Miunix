@@ -7,6 +7,26 @@ export type DashboardAgent = {
   totalRuns: number;
 };
 
+export type DashboardWorkflow = {
+  id: string;
+  slug: string;
+  name: string;
+  shortDescription: string;
+  description: string;
+  deliverable: string;
+  includedAgents: {
+    slug: string;
+    name: string;
+  }[];
+  steps: {
+    id: string;
+    position: number;
+    title: string;
+    stepKey: string;
+    agentSlug: string;
+  }[];
+};
+
 export type DashboardConversation = {
   id: string;
   agentId: string;
@@ -36,3 +56,22 @@ export type DashboardMessage = {
 };
 
 export type DashboardChatHistory = Record<string, DashboardMessage[]>;
+
+export type DashboardWorkflowExecution = {
+  id: string;
+  workflowId: string;
+  workflowSlug: string;
+  workflowName: string;
+  status: "pending" | "running" | "completed" | "failed";
+  startedAt: string;
+  completedAt: string | null;
+  finalOutputText: string;
+  stepRuns: {
+    id: string;
+    stepKey: string;
+    title: string;
+    agentSlug: string;
+    status: "pending" | "running" | "completed" | "failed" | "skipped";
+    outputText: string;
+  }[];
+};

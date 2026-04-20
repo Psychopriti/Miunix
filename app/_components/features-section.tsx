@@ -129,12 +129,7 @@ function FeatureCard({
 
 export function FeaturesSection() {
   return (
-    /**
-     * Outer wrapper adds a top gradient fade so the section blends
-     * smoothly as it scrolls up over the sticky hero panel.
-     */
     <div className="relative">
-      {/* Fade-in mask at the very top edge */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 h-28 z-10"
@@ -167,13 +162,86 @@ export function FeaturesSection() {
             Todo lo que necesitas,{" "}
             <span className="text-[#8f90ff]">listo en minutos.</span>
           </h2>
+          <p className="max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
+            Miunix combina descubrimiento, instalacion y ejecucion en una sola
+            experiencia. Entras, eliges el agente correcto y lo pones a trabajar
+            sin friccion.
+          </p>
         </motion.div>
 
-        {/* Cards grid — 4 columns on lg, 2 on sm, 1 on mobile */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {features.map((feature, i) => (
             <FeatureCard key={feature.id} feature={feature} index={i} />
           ))}
+        </div>
+
+        <div className="mt-10 grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+          <motion.article
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+            className="rounded-[1.5rem] border border-white/10 bg-[linear-gradient(135deg,rgba(143,144,255,0.12),rgba(255,255,255,0.03))] px-6 py-6"
+          >
+            <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">
+              Flujo simple
+            </p>
+            <h3 className="mt-3 text-2xl font-medium tracking-[-0.04em] text-white">
+              Elige el agente, instálalo y ejecútalo en el mismo lugar
+            </h3>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/34">
+                  01
+                </p>
+                <p className="mt-2 text-sm font-medium text-white">Descubre</p>
+                <p className="mt-2 text-sm leading-6 text-white/58">
+                  Encuentra el caso de uso correcto en marketplace.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/34">
+                  02
+                </p>
+                <p className="mt-2 text-sm font-medium text-white">Instala</p>
+                <p className="mt-2 text-sm leading-6 text-white/58">
+                  Activa el agente sin frenar al equipo con setup técnico.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/34">
+                  03
+                </p>
+                <p className="mt-2 text-sm font-medium text-white">Ejecuta</p>
+                <p className="mt-2 text-sm leading-6 text-white/58">
+                  Corre tareas reales y obtén respuesta en minutos.
+                </p>
+              </div>
+            </div>
+          </motion.article>
+
+          <motion.article
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.55, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+            className="rounded-[1.5rem] border border-white/10 bg-[#0c0c0c] px-6 py-6"
+          >
+            <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">
+              Ideal para
+            </p>
+            <div className="mt-4 space-y-3">
+              <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-4 text-sm text-white/72">
+                Equipos de soporte que quieren respuestas más rápidas y consistentes.
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-4 text-sm text-white/72">
+                Negocios que necesitan automatizar tareas sin depender de desarrollo.
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-4 text-sm text-white/72">
+                Usuarios premium que quieren crear agentes privados con MIUNIX+.
+              </div>
+            </div>
+          </motion.article>
         </div>
       </section>
     </div>

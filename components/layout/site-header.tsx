@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AuthSessionControls } from "@/components/auth/auth-session-controls";
-import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
+import { getCurrentProfile, getCurrentUser, isPremiumUser } from "@/lib/auth";
 
 const navItems = [
   { label: "Inicio", href: "/" },
@@ -62,6 +62,8 @@ export async function SiteHeader({ currentPath }: SiteHeaderProps) {
         isAuthenticated={Boolean(user)}
         isDeveloper={profile?.role === "developer"}
         isAdmin={isAdmin}
+        isPremiumUser={isPremiumUser(profile)}
+        shouldShowMiunixPlus={profile?.role === "user"}
         currentPath={currentPath}
       />
     </header>

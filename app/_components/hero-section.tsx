@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { MoveUpRight } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -30,7 +31,6 @@ export function HeroSection() {
       className="flex flex-1 flex-col justify-between gap-10 pb-4 pt-10 sm:pt-14"
     >
       <div className="space-y-8">
-        {/* Hero headline con TextEffect word-by-word */}
         <TextEffect
           as="h1"
           per="word"
@@ -38,12 +38,11 @@ export function HeroSection() {
           delay={0.15}
           speedReveal={1.3}
           speedSegment={1.2}
-          className="max-w-5xl text-balance text-[2.4rem] font-medium leading-[0.98] tracking-[-0.065em] text-white sm:text-[3.8rem] lg:text-[4.9rem]"
+          className="mx-auto max-w-5xl text-balance text-center text-[2.4rem] font-medium leading-[0.98] tracking-[-0.065em] text-white sm:text-[3.8rem] lg:text-[4.9rem]"
         >
           Instala agentes de IA en minutos, sin codigo
         </TextEffect>
 
-        {/* Hero image con entrance animation */}
         <motion.div
           initial={{ opacity: 0, y: 36, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -71,7 +70,6 @@ export function HeroSection() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_55%_38%,rgba(255,255,255,0.38),transparent_18%),radial-gradient(circle_at_48%_22%,rgba(255,255,255,0.2),transparent_12%),radial-gradient(circle_at_63%_65%,rgba(0,0,0,0.18),transparent_22%)]" />
             <div className="relative aspect-[16/8.3] w-full" />
 
-            {/* Agent label pills con stagger spring */}
             {agentLabels.map((item) => (
               <motion.div
                 key={item.label}
@@ -94,9 +92,79 @@ export function HeroSection() {
             ))}
           </div>
         </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: 0.65,
+            delay: 0.28,
+            ease: [0.22, 1, 0.36, 1],
+          }}
+          className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]"
+        >
+          <div className="max-w-2xl space-y-4">
+            <p className="text-base leading-7 text-white/68 sm:text-lg sm:leading-8">
+              Descubre, instala y ejecuta agentes listos para soporte,
+              marketing, research y operaciones desde una experiencia visual
+              mucho mas simple.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/marketplace"
+                className="inline-flex items-center gap-2 rounded-full border border-[#d9ff00]/30 bg-[#d9ff00] px-5 py-3 text-sm font-medium text-black transition hover:bg-[#e5ff45]"
+              >
+                Explorar marketplace
+                <MoveUpRight className="size-4" />
+              </Link>
+              <a
+                href="#features"
+                className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+              >
+                Ver beneficios
+                <MoveUpRight className="size-4" />
+              </a>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.03] px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-white/35">
+                Tiempo de arranque
+              </p>
+              <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#d9ff00]">
+                Minutos
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/58">
+                Sin setup complejo ni implementaciones largas para empezar.
+              </p>
+            </div>
+            <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.03] px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-white/35">
+                Experiencia
+              </p>
+              <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-white">
+                Zero-code
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/58">
+                Pensado para equipos que quieren ejecutar, no programar.
+              </p>
+            </div>
+            <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.03] px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-white/35">
+                Casos de uso
+              </p>
+              <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-white">
+                Reales
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/58">
+                Soporte, ventas, onboarding y flujos internos con valor claro.
+              </p>
+            </div>
+          </div>
+        </motion.div>
       </div>
 
-      {/* Footer con fade in desde abajo */}
       <motion.footer
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -116,12 +184,12 @@ export function HeroSection() {
 
         <motion.a
           id="explorar"
-          href="#"
+          href="#features"
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.96 }}
           className="inline-flex items-center gap-2 self-start rounded-full border border-[#222] px-4 py-2 text-[0.68rem] uppercase tracking-[0.24em] text-[#6b8510] transition hover:border-[#38451a] hover:text-[#99bf17] sm:self-auto"
         >
-          All Rights Reserved
+          Scroll para explorar
           <MoveUpRight className="size-3.5" />
         </motion.a>
       </motion.footer>

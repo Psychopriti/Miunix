@@ -17,9 +17,9 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   icons: {
-    icon: "/brand/logo.png",
-    shortcut: "/brand/logo.png",
-    apple: "/brand/logo.png",
+    icon: "/brand/miunix-mark.svg",
+    shortcut: "/brand/miunix-mark.svg",
+    apple: "/brand/miunix-mark.svg",
   },
 };
 

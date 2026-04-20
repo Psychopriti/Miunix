@@ -169,8 +169,28 @@ async function findPurchasedAgentIds(profileId: string) {
   return new Set(result.data.map((purchase) => purchase.agent_id));
 }
 
+async function findOwnedPremiumAgentIds(profileId: string) {
+  const result = await supabaseAdmin
+    .from("agents")
+    .select("id")
+    .eq("owner_profile_id", profileId)
+    .eq("owner_type", "user")
+    .neq("status", "archived");
+
+  if (result.error) {
+    throw new AgentExecutionError(result.error.message, 500);
+  }
+
+  return new Set(result.data.map((agent) => agent.id));
+}
+
 export async function listOwnedAgentIds(profileId: string) {
-  return findPurchasedAgentIds(profileId);
+  const [purchasedAgentIds, ownedPremiumAgentIds] = await Promise.all([
+    findPurchasedAgentIds(profileId),
+    findOwnedPremiumAgentIds(profileId),
+  ]);
+
+  return new Set([...purchasedAgentIds, ...ownedPremiumAgentIds]);
 }
 
 async function findAgent({
@@ -228,6 +248,14 @@ function canExecuteAgent({
     return agent.status === "published" && agent.is_published && ownsAccess;
   }
 
+  if (agent.owner_type === "user") {
+    return (
+      profile.role === "user" &&
+      Boolean(profile.is_premium) &&
+      agent.owner_profile_id === profile.id
+    );
+  }
+
   return false;
 }
 
@@ -246,7 +274,7 @@ function resolvePrompt(agent: AgentRunnerInput, input: string) {
 
   if (!agent.prompt_template) {
     throw new AgentExecutionError(
-      "Developer agent is missing prompt_template.",
+      "Custom agent is missing prompt_template.",
       500,
     );
   }
@@ -652,21 +680,21 @@ export async function listAgents() {
         ? "Miunix"
         : profilesById.get(agent.owner_profile_id ?? "")?.full_name ??
           profilesById.get(agent.owner_profile_id ?? "")?.email ??
-          "Developer",
+          (agent.owner_type === "user" ? "MIUNIX+ User" : "Developer"),
   })) satisfies AgentListItem[];
 }
 
 export async function listAccessibleAgents(profileId: string) {
-  const purchasedAgentIds = await findPurchasedAgentIds(profileId);
+  const accessibleAgentIds = await listOwnedAgentIds(profileId);
 
-  if (purchasedAgentIds.size === 0) {
+  if (accessibleAgentIds.size === 0) {
     return [] satisfies AgentListItem[];
   }
 
   const result = await supabaseAdmin
     .from("agents")
     .select("*")
-    .in("id", Array.from(purchasedAgentIds))
+    .in("id", Array.from(accessibleAgentIds))
     .eq("is_active", true)
     .order("name", { ascending: true });
 
@@ -717,7 +745,7 @@ export async function listAccessibleAgents(profileId: string) {
           ? "Miunix"
           : profilesById.get(agent.owner_profile_id ?? "")?.full_name ??
             profilesById.get(agent.owner_profile_id ?? "")?.email ??
-            "Developer",
+            (agent.owner_type === "user" ? "MIUNIX+ User" : "Developer"),
     })) satisfies AgentListItem[];
 }
 
@@ -866,7 +894,7 @@ export async function runAgent(
   }
 
   if (
-    agent.owner_type === "developer" &&
+    agent.owner_type !== "platform" &&
     Array.isArray(agent.tool_definitions) &&
     agent.tool_definitions.length > 0
   ) {
@@ -890,7 +918,7 @@ export async function runAgent(
 
   const response = await openai.chat.completions.create({
     model:
-      agent.owner_type === "developer" && agent.model
+      agent.owner_type !== "platform" && agent.model
         ? agent.model
         : OPENAI_QUALITY_MODEL,
     messages: [
@@ -912,15 +940,15 @@ export async function runAgent(
 
   return {
     output,
-      metadata: {
-        provider: "openai",
-        model:
-          agent.owner_type === "developer" && agent.model
-            ? agent.model
-            : OPENAI_QUALITY_MODEL,
-      },
-    };
-  }
+    metadata: {
+      provider: "openai",
+      model:
+        agent.owner_type !== "platform" && agent.model
+          ? agent.model
+          : OPENAI_QUALITY_MODEL,
+    },
+  };
+}
 
 async function createPendingExecution({
   agent,

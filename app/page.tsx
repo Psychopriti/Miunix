@@ -1,36 +1,18 @@
-import { SiteHeader } from "@/components/layout/site-header";
 import { HeroSection } from "@/app/_components/hero-section";
-import { HeroPanel } from "@/app/_components/hero-panel";
 import { FeaturesSection } from "@/app/_components/features-section";
+import { SiteHeader } from "@/components/layout/site-header";
 
 export default function Home() {
   return (
     <main className="bg-[#050505] text-white">
-      {/*
-        ── Hero ──────────────────────────────────────────────────────────────
-        100vh wrapper gives the sticky panel one full viewport to "sit" before
-        the features section starts scrolling up over it.
-      */}
-      <div className="h-screen">
-        {/*
-          HeroPanel is a Client Component that animates, but SiteHeader and
-          HeroSection are Server Components passed as children so they keep
-          access to server-only APIs (cookies, etc.).
-        */}
-        <HeroPanel>
+      <section className="mx-auto w-full max-w-[1280px] px-5 py-5 sm:px-8 sm:py-7">
+        <div className="flex min-h-screen flex-col rounded-[2rem] border border-white/8 bg-[#080808] px-5 py-5 shadow-[0_30px_120px_rgba(0,0,0,0.55)] sm:px-8 sm:py-7 lg:px-10 lg:py-8">
           <SiteHeader currentPath="/" />
           <HeroSection />
-        </HeroPanel>
-      </div>
+        </div>
+      </section>
 
-      {/*
-        ── Features ──────────────────────────────────────────────────────────
-        z-20 ensures it renders on top of the sticky hero panel as it scrolls.
-        bg-[#050505] matches the page background so the gradient mask blends.
-      */}
-      <div className="relative z-20 bg-[#050505]">
-        <FeaturesSection />
-      </div>
+      <FeaturesSection />
     </main>
   );
 }

@@ -7,7 +7,8 @@ export type Json =
   | Json[];
 
 export type ProfileRole = "user" | "developer" | "admin";
-export type AgentOwnerType = "platform" | "developer";
+export type PremiumPlan = "starter" | "pro" | "scale";
+export type AgentOwnerType = "platform" | "developer" | "user";
 export type AgentStatus = "draft" | "published" | "archived";
 export type AgentPricingType = "free" | "one_time";
 export type ExecutionStatus = "pending" | "completed" | "failed";
@@ -48,6 +49,10 @@ export type Database = {
           full_name: string | null;
           email: string | null;
           role: ProfileRole;
+          is_premium: boolean;
+          premium_plan: PremiumPlan | null;
+          premium_agent_limit: number;
+          premium_since: string | null;
           created_at: string;
         };
         Insert: {
@@ -56,6 +61,10 @@ export type Database = {
           full_name?: string | null;
           email?: string | null;
           role?: ProfileRole;
+          is_premium?: boolean;
+          premium_plan?: PremiumPlan | null;
+          premium_agent_limit?: number;
+          premium_since?: string | null;
           created_at?: string;
         };
         Update: {
@@ -64,6 +73,10 @@ export type Database = {
           full_name?: string | null;
           email?: string | null;
           role?: ProfileRole;
+          is_premium?: boolean;
+          premium_plan?: PremiumPlan | null;
+          premium_agent_limit?: number;
+          premium_since?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -544,6 +557,7 @@ export type Database = {
     Functions: Record<string, never>;
     Enums: {
       profile_role: ProfileRole;
+      premium_plan: PremiumPlan;
       agent_owner_type: AgentOwnerType;
       agent_status: AgentStatus;
       agent_pricing_type: AgentPricingType;

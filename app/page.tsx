@@ -1,5 +1,6 @@
 import { HeroSection } from "@/app/_components/hero-section";
 import { FeaturesSection } from "@/app/_components/features-section";
+import { MiunixAssistantBubble } from "@/app/_components/miunix-assistant-bubble";
 import { PageGradient } from "@/app/_components/page-gradient";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
@@ -26,6 +27,8 @@ export default function Home() {
 
       {/* Public footer */}
       <SiteFooter />
+
+      <MiunixAssistantBubble />
     </div>
   );
 }

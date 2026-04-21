@@ -31,6 +31,7 @@ export type AgentListItem = Pick<
   | "total_reviews"
   | "total_runs"
   | "cover_image_url"
+  | "owner_type"
 > & {
   ownerLabel: string;
 };
@@ -675,6 +676,7 @@ export async function listAgents() {
     total_reviews: agent.total_reviews,
     total_runs: agent.total_runs,
     cover_image_url: agent.cover_image_url,
+    owner_type: agent.owner_type,
     ownerLabel:
       agent.owner_type === "platform"
         ? "Miunix"
@@ -740,6 +742,7 @@ export async function listAccessibleAgents(profileId: string) {
       total_reviews: agent.total_reviews,
       total_runs: agent.total_runs,
       cover_image_url: agent.cover_image_url,
+      owner_type: agent.owner_type,
       ownerLabel:
         agent.owner_type === "platform"
           ? "Miunix"

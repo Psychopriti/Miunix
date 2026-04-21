@@ -5,6 +5,23 @@ export type DashboardAgent = {
   shortDescription: string;
   description: string;
   totalRuns: number;
+  ownerType: "platform" | "developer" | "user";
+  ownerLabel: string;
+};
+
+export type DashboardAccount = {
+  profileName: string;
+  email: string | null;
+  role: "user" | "developer" | "admin";
+  isPremium: boolean;
+  premiumPlanName: string | null;
+  premiumAgentLimit: number;
+  premiumSince: string | null;
+  privateAgentCount: number;
+  purchasedAgentCount: number;
+  purchasedWorkflowCount: number;
+  totalPromptRuns: number;
+  activeAgentCount: number;
 };
 
 export type DashboardWorkflow = {

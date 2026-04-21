@@ -2,9 +2,9 @@ import Link from "next/link";
 
 const footerLinks = [
   { label: "Inicio",       href: "/" },
-  { label: "Planes",       href: "/miunix-plus" },
+  { label: "Workflows",    href: "/workflows" },
   { label: "Mis Agentes",  href: "/dashboard" },
-  { label: "Mi Cuenta",    href: "/dashboard" },
+  { label: "Mi Cuenta",    href: "/mi-cuenta" },
 ];
 
 /**

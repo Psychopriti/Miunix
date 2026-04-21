@@ -95,8 +95,13 @@ export default async function DashboardPage() {
     redirect(getDefaultRouteForRole(profile.role));
   }
 
-  const [agents, conversations, executionHistory, workflows, workflowExecutions] =
-    await Promise.all([
+  const [
+    agents,
+    conversations,
+    executionHistory,
+    workflows,
+    workflowExecutions,
+  ] = await Promise.all([
     listAccessibleAgents(profile.id),
     listAgentConversations(profile.id),
     listExecutionHistory(profile.id),
@@ -111,6 +116,8 @@ export default async function DashboardPage() {
     shortDescription: agent.short_description ?? "Agente listo para ejecutarse.",
     description: agent.description ?? agent.short_description ?? "",
     totalRuns: agent.total_runs,
+    ownerType: agent.owner_type,
+    ownerLabel: agent.ownerLabel,
   }));
   const dashboardConversations: DashboardConversation[] = conversations;
   const dashboardWorkflows: DashboardWorkflow[] = workflows.map((workflow) => ({

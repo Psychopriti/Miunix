@@ -6,6 +6,7 @@ import {
   AlertCircle,
   ArrowUpRight,
   ChevronRight,
+  LockKeyhole,
   PencilLine,
   Plus,
   Search,
@@ -156,6 +157,12 @@ function AgentCard({
             {conversationCount} conversación
             {conversationCount === 1 ? "" : "es"}
           </p>
+          {agent.ownerType === "user" ? (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#d9ff00]/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-[#efffa8]">
+              <LockKeyhole className="h-2.5 w-2.5" />
+              Privado
+            </span>
+          ) : null}
         </div>
 
         <AnimatePresence>
@@ -1267,12 +1274,13 @@ export function DashboardClient({
           </div>
 
           <div className="border-t border-white/6 p-3">
-            <button
-              type="button"
+            <Link
+              href="/mi-cuenta"
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/4 text-white/40 transition hover:bg-white/8 hover:text-white/70"
+              aria-label="Abrir mi cuenta"
             >
               <Settings className="h-4 w-4" />
-            </button>
+            </Link>
           </div>
         </aside>
 

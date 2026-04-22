@@ -118,6 +118,7 @@ export default async function DashboardPage() {
     totalRuns: agent.total_runs,
     ownerType: agent.owner_type,
     ownerLabel: agent.ownerLabel,
+    toolDefinitions: agent.tool_definitions,
   }));
   const dashboardConversations: DashboardConversation[] = conversations;
   const dashboardWorkflows: DashboardWorkflow[] = workflows.map((workflow) => ({

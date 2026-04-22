@@ -37,7 +37,6 @@ async function getSharedChatModel() {
       new ChatOpenAI({
         model: env.openAiModelQuality,
         apiKey: env.openAiApiKey,
-        temperature: 0.2,
       }),
     );
   }
@@ -223,6 +222,16 @@ function isMarketingEvidenceRequest(agent: AgentRunnerInput, input: string) {
   );
 }
 
+function isMarketingImageRequest(agent: AgentRunnerInput, input: string) {
+  if (agent.slug !== "marketing-content") {
+    return false;
+  }
+
+  return /(imagen|imagenes|image|visual|grafica|gr[aá]fica|banner|thumbnail|miniatura|creativ[oa]|ad visual|anuncio visual|meta ads|facebook ads|instagram ads)/i.test(
+    input,
+  );
+}
+
 function isResearchEvidenceRequest(agent: AgentRunnerInput, input: string) {
   if (agent.slug !== "research") {
     return false;
@@ -255,6 +264,8 @@ function buildRuntimeSystemPrompt(agent: AgentRunnerInput, input: string) {
       "- You must use multi_query_company_search or web_company_search before answering.",
       "- You should inspect promising pages with web_page_extractor when possible.",
       "- You must use company_prospect_scorer before the final answer when comparing multiple sourced companies.",
+      "- Use qualification_scorecard when judging ICP quality or segment fit.",
+      "- Use outbound_sequence_builder when the user asks for outreach, sales activation, or follow-up sequence.",
       "- Exclude any company marked or inferred as adjacent_or_competitor unless the user explicitly asked for vendors, software, or competitors.",
       "- Bias your searches toward operational service businesses, not CRM vendors, WhatsApp tools, agencies, or automation providers.",
       "- Return the best real companies you actually found, even if the list is incomplete.",
@@ -284,6 +295,9 @@ function buildRuntimeSystemPrompt(agent: AgentRunnerInput, input: string) {
       "- Use messaging_evidence_extractor to separate observed claims, proof, and CTA signals from your own interpretation.",
       "- Use competitive_gap_analyzer when the task involves differentiation, white-space, or competitor comparison.",
       "- Use offer_outcome_mapper when the offer needs sharper translation from features into buyer outcomes.",
+      "- Use brand_voice_calibrator when tone, trust, buyer sophistication, or brand perception matters.",
+      "- Use creative_testing_matrix when the task involves campaigns, ads, launches, or performance testing.",
+      "- Use visual_asset_creator when the user asks for images, ad visuals, banners, thumbnails, campaign graphics, or image prompts.",
       "- The final answer must stay in the user's language even if the source pages are in another language.",
       "- Do not rely on generic copy instincts if concrete market or page evidence is available.",
     ].join("\n");
@@ -310,6 +324,9 @@ function buildRuntimeSystemPrompt(agent: AgentRunnerInput, input: string) {
       "- Use messaging_evidence_extractor to distinguish observed market signals from your own inference.",
       "- Use decision_matrix_builder when the user is comparing options and you need a clearer ranking.",
       "- Use competitive_gap_analyzer when competitor positioning or strategic white space is part of the question.",
+      "- Use research_document_builder when the user asks for a doc, report, memo, markdown document, or shareable research brief.",
+      "- Use evidence_confidence_ladder when claims have uneven evidence quality or the recommendation depends on uncertain signals.",
+      "- Use assumption_risk_mapper when assumptions, risk, validation, or strategic uncertainty matter.",
       "- The final answer must stay in the user's language even if the evidence comes from English-language pages.",
       "- Do not answer as a generic memo if direct evidence can materially improve the recommendation.",
     ].join("\n");
@@ -423,6 +440,80 @@ function buildMissingSearchProviderMessage() {
     "",
     "Sin eso, el agente queda dependiendo de un fallback debil y puede devolver respuestas vacias o poco confiables cuando le pides empresas reales.",
   ].join("\n");
+}
+
+function extractVisualAssetPrompt(evidence: Array<{ toolName: string; content: string }>) {
+  const visualAssetEvidence = evidence
+    .filter((item) => item.toolName === "visual_asset_creator")
+    .map((item) => item.content)
+    .at(-1);
+
+  if (!visualAssetEvidence) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(visualAssetEvidence) as {
+      productionPrompt?: unknown;
+    };
+
+    return typeof parsed.productionPrompt === "string"
+      ? parsed.productionPrompt
+      : null;
+  } catch {
+    const match = visualAssetEvidence.match(/"productionPrompt"\s*:\s*"([^"]+)"/);
+    return match?.[1]?.replace(/\\"/g, "\"") ?? null;
+  }
+}
+
+async function generateMarketingImageAttachment({
+  input,
+  evidence,
+  onProgress,
+}: {
+  input: string;
+  evidence: Array<{ toolName: string; content: string }>;
+  onProgress?: AgentProgressReporter;
+}) {
+  const prompt =
+    extractVisualAssetPrompt(evidence) ??
+    [
+      "Create a polished marketing image for this campaign request:",
+      input,
+      "Use a clean composition, credible commercial style, strong focal point, realistic lighting, and enough negative space for ad copy.",
+      "Avoid fake logos, unreadable text, exaggerated claims, and cluttered UI fragments.",
+    ].join(" ");
+
+  await onProgress?.({
+    id: "image-generation",
+    kind: "tool",
+    label: "Generando imagen de marketing",
+    status: "running",
+  });
+
+  const imageResponse = await openai.images.generate({
+    model: "gpt-image-1.5",
+    prompt,
+    size: "1024x1024",
+    quality: "medium",
+    output_format: "png",
+    n: 1,
+  });
+  const imageData = imageResponse.data?.[0]?.b64_json;
+
+  await onProgress?.({
+    id: "image-generation",
+    kind: "tool",
+    label: imageData ? "Imagen de marketing generada" : "No se recibio imagen",
+    status: imageData ? "completed" : "failed",
+  });
+
+  return imageData
+    ? {
+        prompt,
+        dataUrl: `data:image/png;base64,${imageData}`,
+      }
+    : null;
 }
 
 export function canRunWithLangChain(agent: AgentRunnerInput) {
@@ -569,9 +660,10 @@ export async function runAgentWithLangChainStream(
   });
 
   let finalOutput = output;
+  const toolEvidence = getToolEvidence(latestMessages);
 
   if (isLeadSourcingRequest(agent, input) && looksLikeGenericSourcingFailure(output)) {
-    const evidence = getToolEvidence(latestMessages).filter((item) =>
+    const evidence = toolEvidence.filter((item) =>
       [
         "multi_query_company_search",
         "web_company_search",
@@ -602,6 +694,45 @@ export async function runAgentWithLangChainStream(
       });
     } else if (!hasConfiguredSearchProvider()) {
       finalOutput = buildMissingSearchProviderMessage();
+    }
+  }
+
+  if (isMarketingImageRequest(agent, input)) {
+    try {
+      const generatedImage = await generateMarketingImageAttachment({
+        input,
+        evidence: toolEvidence,
+        onProgress,
+      });
+
+      if (generatedImage) {
+        finalOutput = [
+          finalOutput,
+          "",
+          "Imagen generada",
+          generatedImage.dataUrl,
+          "",
+          "**Prompt usado:**",
+          generatedImage.prompt,
+        ].join("\n");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "No se pudo generar la imagen.";
+
+      finalOutput = [
+        finalOutput,
+        "",
+        "Imagen generada",
+        `No pude generar la imagen por ahora: ${message}`,
+      ].join("\n");
+
+      await onProgress?.({
+        id: "image-generation",
+        kind: "tool",
+        label: "La generacion de imagen fallo",
+        status: "failed",
+      });
     }
   }
 

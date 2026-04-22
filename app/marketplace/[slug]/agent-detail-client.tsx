@@ -7,6 +7,8 @@ import { motion } from "motion/react";
 import { AgentAcquireButton } from "./agent-acquire-button";
 import { AgentReviewsSection } from "./agent-reviews-section";
 import type { AgentReviewComposer, AgentReviewItem } from "@/ai/agent-reviews";
+import { AgentArchitectureGraph } from "@/components/marketing/agent-architecture-graph";
+import type { Json } from "@/types/database";
 
 type Benefit = {
   readonly icon: string;
@@ -24,6 +26,8 @@ type AgentDetailClientProps = {
   publishedAgent: {
     id: string;
     total_reviews: number;
+    owner_type: "platform" | "developer" | "user";
+    tool_definitions: Json;
   };
   detailTitle: string;
   ownerLabel: string;
@@ -219,6 +223,19 @@ export function AgentDetailClient({
           </div>
         </motion.aside>
       </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.62, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <AgentArchitectureGraph
+          agentSlug={slug}
+          agentName={detailTitle}
+          ownerType={publishedAgent.owner_type}
+          toolDefinitions={publishedAgent.tool_definitions}
+        />
+      </motion.div>
 
       {/* ── Reviews section con fade-in desde abajo ── */}
       <motion.div

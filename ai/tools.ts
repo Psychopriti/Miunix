@@ -672,6 +672,138 @@ const outreachPlannerTool = tool(
   },
 );
 
+const outboundSequenceBuilderTool = tool(
+  async ({
+    prospect,
+    pain,
+    offer,
+    channels,
+  }: {
+    prospect: string;
+    pain: string;
+    offer: string;
+    channels?: Array<"whatsapp" | "email" | "linkedin">;
+  }) => {
+    const selectedChannels = channels?.length ? channels : ["whatsapp", "email"];
+
+    return stringify({
+      prospect,
+      pain,
+      offer,
+      sequenceLogic: [
+        "Open with a specific workflow pain, not the product.",
+        "Make the cost of inaction concrete.",
+        "Introduce the offer as a low-friction operational fix.",
+        "Ask for a small diagnostic conversation, not a big commitment.",
+      ],
+      steps: selectedChannels.map((channel, index) => ({
+        day: index * 2 + 1,
+        channel,
+        job: "Start the conversation with a concrete operational observation.",
+        messageAngle: `Tie ${pain} to a visible business consequence for ${prospect}.`,
+      })),
+      objectionHandlers: [
+        {
+          objection: "Ya lo hacemos manualmente.",
+          responseFrame:
+            "Acknowledge the workaround, then contrast human effort with consistency, visibility, and response speed.",
+        },
+        {
+          objection: "No tenemos presupuesto.",
+          responseFrame:
+            "Reframe around leakage, missed appointments, slow follow-up, or owner time before discussing price.",
+        },
+      ],
+    });
+  },
+  {
+    name: "outbound_sequence_builder",
+    description:
+      "Builds a practical multi-touch outbound sequence with channel logic and objection-handling frames.",
+    schema: z.object({
+      prospect: z.string().describe("Prospect segment, ICP, or account type."),
+      pain: z.string().describe("Core workflow pain to anchor the sequence."),
+      offer: z.string().describe("Offer being sold."),
+      channels: z
+        .array(z.enum(["whatsapp", "email", "linkedin"]))
+        .optional()
+        .describe("Optional outreach channels to include."),
+    }),
+  },
+);
+
+const qualificationScorecardTool = tool(
+  async ({
+    segment,
+    offer,
+    buyingTriggers,
+  }: {
+    segment: string;
+    offer: string;
+    buyingTriggers?: string[];
+  }) => {
+    return stringify({
+      segment,
+      offer,
+      scoringDimensions: [
+        {
+          name: "Pain frequency",
+          weight: 30,
+          highSignal:
+            "The workflow problem happens daily or weekly and affects revenue, response time, or service quality.",
+        },
+        {
+          name: "Decision access",
+          weight: 20,
+          highSignal:
+            "Owner, gerente, or commercial/operations lead is reachable without long procurement.",
+        },
+        {
+          name: "Economic consequence",
+          weight: 25,
+          highSignal:
+            "The pain creates missed sales, lost appointments, rework, delays, or owner overload.",
+        },
+        {
+          name: "Implementation fit",
+          weight: 15,
+          highSignal:
+            "The current process already uses WhatsApp, forms, spreadsheets, CRM, or manual reminders.",
+        },
+        {
+          name: "Urgency trigger",
+          weight: 10,
+          highSignal:
+            "Growth, new location, high inbound volume, seasonal pressure, or service bottleneck.",
+        },
+      ],
+      buyingTriggers: buyingTriggers ?? [
+        "Slow response or missed follow-up is visible",
+        "Manual coordination is creating leakage",
+        "Owner wants growth without adding admin burden",
+      ],
+      recommendedDisqualificationRules: [
+        "Pain is occasional, not repeated",
+        "Buyer cannot name a concrete operational bottleneck",
+        "The offer would require heavy custom work before value is visible",
+      ],
+    });
+  },
+  {
+    name: "qualification_scorecard",
+    description:
+      "Creates a weighted qualification scorecard for ICPs, segments, or accounts.",
+    schema: z.object({
+      segment: z.string().describe("Target segment or account type."),
+      offer: z.string().describe("Offer being sold."),
+      buyingTriggers: z
+        .array(z.string())
+        .optional()
+        .describe("Optional buying triggers already identified."),
+    }),
+  },
+);
+
 const campaignAngleTool = tool(
   async ({
     offer,
@@ -911,6 +1043,317 @@ const copyChannelSpecTool = tool(
   },
 );
 
+const creativeTestingMatrixTool = tool(
+  async ({
+    campaignConcept,
+    audience,
+    channels,
+  }: {
+    campaignConcept: string;
+    audience: string;
+    channels?: string[];
+  }) => {
+    const selectedChannels = channels?.length
+      ? channels
+      : ["Meta Ads", "Landing page", "Email"];
+
+    return stringify({
+      campaignConcept,
+      audience,
+      testPlan: selectedChannels.map((channel) => ({
+        channel,
+        hypotheses: [
+          "Pain-led messaging will outperform feature-led messaging when the buyer already feels operational friction.",
+          "Risk-reduction proof will improve conversion when the buyer fears implementation complexity.",
+          "Outcome-specific CTAs will outperform generic demo CTAs in early tests.",
+        ],
+        variablesToTest: [
+          "Hook mechanism",
+          "Proof angle",
+          "CTA commitment level",
+          "Visual framing",
+        ],
+      })),
+      decisionRules: [
+        "Keep tests focused on one major variable at a time.",
+        "Winner is not only CTR; look for qualified replies, booked calls, or high-intent actions.",
+        "Kill angles that attract curiosity but not buying intent.",
+      ],
+    });
+  },
+  {
+    name: "creative_testing_matrix",
+    description:
+      "Builds a campaign testing matrix with hypotheses, variables, and decision rules across channels.",
+    schema: z.object({
+      campaignConcept: z.string().describe("Core campaign concept or promise."),
+      audience: z.string().describe("Target audience."),
+      channels: z.array(z.string()).optional().describe("Optional channels to test."),
+    }),
+  },
+);
+
+const brandVoiceCalibratorTool = tool(
+  async ({
+    brand,
+    audience,
+    desiredPerception,
+  }: {
+    brand: string;
+    audience: string;
+    desiredPerception?: string;
+  }) => {
+    return stringify({
+      brand,
+      audience,
+      desiredPerception:
+        desiredPerception ?? "credible, direct, helpful, and commercially sharp",
+      voiceRules: [
+        "Sound like an operator who understands the buyer's workflow.",
+        "Use concrete outcomes instead of motivational language.",
+        "Avoid hype unless the proof and category context justify it.",
+        "Make CTAs feel easy to accept and aligned to awareness level.",
+      ],
+      phraseBank: {
+        useMore: [
+          "responder mas rapido",
+          "evitar fugas de seguimiento",
+          "tener visibilidad del proceso",
+          "menos trabajo manual para el equipo",
+        ],
+        avoid: [
+          "transforma tu negocio",
+          "desbloquea el crecimiento",
+          "solucion revolucionaria",
+          "automatizacion inteligente sin contexto",
+        ],
+      },
+    });
+  },
+  {
+    name: "brand_voice_calibrator",
+    description:
+      "Defines voice rules, phrase guidance, and tone calibration for campaign copy.",
+    schema: z.object({
+      brand: z.string().describe("Brand, offer, or product name."),
+      audience: z.string().describe("Target audience."),
+      desiredPerception: z
+        .string()
+        .optional()
+        .describe("How the brand should be perceived."),
+    }),
+  },
+);
+
+const visualAssetCreatorTool = tool(
+  async ({
+    campaignGoal,
+    audience,
+    format,
+    visualDirection,
+  }: {
+    campaignGoal: string;
+    audience: string;
+    format?: string;
+    visualDirection?: string;
+  }) => {
+    const productionPrompt = [
+      `Create a polished marketing image for: ${campaignGoal}.`,
+      `Audience: ${audience}.`,
+      visualDirection
+        ? `Visual direction: ${visualDirection}.`
+        : "Visual direction: modern, credible, conversion-focused, with clear subject hierarchy.",
+      "Use a clean composition, strong focal point, realistic lighting, and enough negative space for headline placement.",
+      "Avoid fake logos, unreadable text, exaggerated claims, and cluttered UI fragments.",
+      "Do not include readable text inside the image unless it is minimal and generic.",
+    ].join(" ");
+
+      return stringify({
+        assetType: format ?? "campaign image",
+        campaignGoal,
+        audience,
+        status: "image_prompt_ready",
+        productionPrompt,
+        artDirection: {
+          composition: "Primary subject or product context in the center, supporting visual signals around it.",
+        palette: "Use brand-aware contrast instead of a one-color wash.",
+        copySpace: "Leave safe space for headline, CTA, or campaign label.",
+      },
+      variants: [
+        "Hero visual for landing page",
+        "Square social ad",
+        "Wide banner for email or web",
+      ],
+    });
+  },
+      {
+        name: "visual_asset_creator",
+        description:
+          "Creates a production-ready image prompt and art direction. The runtime generates the actual image after the final answer to avoid passing base64 through the language model.",
+    schema: z.object({
+      campaignGoal: z.string().describe("The campaign goal or offer to visualize."),
+      audience: z.string().describe("The audience the image must persuade."),
+      format: z
+        .string()
+        .optional()
+        .describe("Optional image format such as hero, social ad, banner, or product mockup."),
+      visualDirection: z
+        .string()
+        .optional()
+        .describe("Optional desired style, subject, or art direction."),
+    }),
+  },
+);
+
+const researchDocumentBuilderTool = tool(
+  async ({
+    title,
+    objective,
+    audience,
+    sections,
+    evidenceNotes,
+  }: {
+    title: string;
+    objective: string;
+    audience?: string;
+    sections?: string[];
+    evidenceNotes?: string[];
+  }) => {
+    const normalizedSections =
+      sections && sections.length > 0
+        ? sections
+        : [
+            "Executive summary",
+            "Evidence and observations",
+            "Analysis",
+            "Recommendation",
+            "Next questions",
+          ];
+
+    return stringify({
+      documentType: "research_memo",
+      status: "document_outline_ready",
+      title,
+      objective,
+      audience: audience ?? "decision-maker",
+      markdownTemplate: [
+        `# ${title}`,
+        "",
+        `**Objective:** ${objective}`,
+        `**Audience:** ${audience ?? "decision-maker"}`,
+        "",
+        ...normalizedSections.flatMap((section) => [
+          `## ${section}`,
+          "- Key point:",
+          "- Supporting evidence:",
+          "- Decision implication:",
+          "",
+        ]),
+      ].join("\n"),
+      evidenceNotes: evidenceNotes ?? [],
+      qualityChecklist: [
+        "Separate observed evidence from inference.",
+        "Make the recommendation explicit.",
+        "Name the uncertainties that could change the conclusion.",
+      ],
+    });
+  },
+  {
+    name: "research_document_builder",
+    description:
+      "Creates a structured markdown research document outline or memo template for a decision-ready research deliverable.",
+    schema: z.object({
+      title: z.string().describe("Document title."),
+      objective: z.string().describe("Decision or research objective."),
+      audience: z.string().optional().describe("Who will use the document."),
+      sections: z
+        .array(z.string())
+        .optional()
+        .describe("Optional document sections requested by the user."),
+      evidenceNotes: z
+        .array(z.string())
+        .optional()
+        .describe("Optional observed evidence or notes to preserve in the document."),
+    }),
+  },
+);
+
+const assumptionRiskMapTool = tool(
+  async ({
+    decision,
+    assumptions,
+  }: {
+    decision: string;
+    assumptions: string[];
+  }) => {
+    return stringify({
+      decision,
+      assumptionMap: assumptions.map((assumption, index) => ({
+        assumption,
+        criticality: index < 2 ? "high" : "medium",
+        failureMode:
+          "If this assumption is wrong, the recommendation may overestimate urgency, feasibility, or willingness to pay.",
+        validationMethod:
+          "Validate through customer interviews, observed workflow evidence, search/source evidence, or a small market test.",
+      })),
+      recommendationRule:
+        "Prioritize validating assumptions that combine high uncertainty with high consequence.",
+    });
+  },
+  {
+    name: "assumption_risk_mapper",
+    description:
+      "Maps critical assumptions, failure modes, and validation methods for a strategic decision.",
+    schema: z.object({
+      decision: z.string().describe("Decision being evaluated."),
+      assumptions: z
+        .array(z.string())
+        .min(1)
+        .describe("Important assumptions behind the decision."),
+    }),
+  },
+);
+
+const evidenceConfidenceLadderTool = tool(
+  async ({
+    claims,
+  }: {
+    claims: Array<{ claim: string; evidence?: string }>;
+  }) => {
+    return stringify({
+      claims: claims.map((item) => {
+        const hasEvidence = Boolean(item.evidence?.trim());
+
+        return {
+          claim: item.claim,
+          evidence: item.evidence ?? "not provided",
+          confidence: hasEvidence ? "medium" : "low",
+          upgradePath: hasEvidence
+            ? "Confirm with a second source or direct customer signal."
+            : "Find a source, customer quote, observed page, pricing signal, or workflow example.",
+        };
+      }),
+      rule:
+        "Do not let low-confidence claims drive the final recommendation unless they are framed as hypotheses.",
+    });
+  },
+  {
+    name: "evidence_confidence_ladder",
+    description:
+      "Grades claims by evidence confidence and names what would improve confidence.",
+    schema: z.object({
+      claims: z
+        .array(
+          z.object({
+            claim: z.string().describe("Claim or insight to grade."),
+            evidence: z.string().optional().describe("Evidence supporting the claim."),
+          }),
+        )
+        .min(1),
+    }),
+  },
+);
+
 const agentToolsBySlug = {
   "lead-generation": [
     leadProfileCanvasTool,
@@ -920,6 +1363,8 @@ const agentToolsBySlug = {
     signalScannerTool,
     decisionMatrixTool,
     outreachPlannerTool,
+    outboundSequenceBuilderTool,
+    qualificationScorecardTool,
     webCompanySearchTool,
     multiQueryCompanySearchTool,
     webPageExtractorTool,
@@ -931,10 +1376,13 @@ const agentToolsBySlug = {
     offerOutcomeMapperTool,
     messagingEvidenceExtractorTool,
     competitiveGapAnalyzerTool,
+    creativeTestingMatrixTool,
+    brandVoiceCalibratorTool,
     signalScannerTool,
     webCompanySearchTool,
     webPageExtractorTool,
     multiQueryCompanySearchTool,
+    visualAssetCreatorTool,
   ],
   research: [
     researchFrameworkTool,
@@ -945,6 +1393,9 @@ const agentToolsBySlug = {
     webCompanySearchTool,
     webPageExtractorTool,
     multiQueryCompanySearchTool,
+    researchDocumentBuilderTool,
+    assumptionRiskMapTool,
+    evidenceConfidenceLadderTool,
   ],
 } as const;
 

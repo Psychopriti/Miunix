@@ -33,6 +33,7 @@ export type DeveloperAgentListItem = Pick<
   | "currency"
   | "total_runs"
   | "updated_at"
+  | "tool_definitions"
 > & {
   toolCount: number;
 };
@@ -113,9 +114,10 @@ export async function listDeveloperAgents(profileId: string) {
     pricing_type: agent.pricing_type,
     price: agent.price,
     currency: agent.currency,
-    total_runs: agent.total_runs,
-    updated_at: agent.updated_at,
-    toolCount: Array.isArray(agent.tool_definitions)
+      total_runs: agent.total_runs,
+      updated_at: agent.updated_at,
+      tool_definitions: agent.tool_definitions,
+      toolCount: Array.isArray(agent.tool_definitions)
       ? agent.tool_definitions.length
       : 0,
   })) satisfies DeveloperAgentListItem[];

@@ -32,6 +32,7 @@ export type AgentListItem = Pick<
   | "total_runs"
   | "cover_image_url"
   | "owner_type"
+  | "tool_definitions"
 > & {
   ownerLabel: string;
 };
@@ -548,6 +549,10 @@ function shouldPolishBuiltInOutput(
   input: string,
   output: string,
 ) {
+  if (/data:image\/(png|jpeg|webp);base64,/i.test(output)) {
+    return false;
+  }
+
   const expectations = builtInAgentOutputExpectations[agent.slug];
 
   if (!expectations) {
@@ -677,6 +682,7 @@ export async function listAgents() {
     total_runs: agent.total_runs,
     cover_image_url: agent.cover_image_url,
     owner_type: agent.owner_type,
+    tool_definitions: agent.tool_definitions,
     ownerLabel:
       agent.owner_type === "platform"
         ? "Miunix"
@@ -743,6 +749,7 @@ export async function listAccessibleAgents(profileId: string) {
       total_runs: agent.total_runs,
       cover_image_url: agent.cover_image_url,
       owner_type: agent.owner_type,
+      tool_definitions: agent.tool_definitions,
       ownerLabel:
         agent.owner_type === "platform"
           ? "Miunix"

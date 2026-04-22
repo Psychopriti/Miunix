@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { motion } from "motion/react";
 
+import { AgentArchitectureGraph } from "@/components/marketing/agent-architecture-graph";
 import { MarketplaceCard } from "@/components/marketing/marketplace-card";
 import type { DeveloperMarketplaceProfile } from "@/lib/developer-marketplace";
 
@@ -204,6 +205,15 @@ export function DeveloperDetailClient({
                 averageRating={agent.averageRating}
                 totalReviews={agent.totalReviews}
               />
+              <div className="mt-4">
+                <AgentArchitectureGraph
+                  agentSlug={agent.slug}
+                  agentName={agent.name}
+                  ownerType={agent.ownerType}
+                  toolDefinitions={agent.toolDefinitions}
+                  compact
+                />
+              </div>
             </motion.div>
           ))}
         </motion.div>

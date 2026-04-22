@@ -1,3 +1,5 @@
+import type { Json } from "@/types/database";
+
 export type DashboardAgent = {
   id: string;
   slug: string;
@@ -7,6 +9,7 @@ export type DashboardAgent = {
   totalRuns: number;
   ownerType: "platform" | "developer" | "user";
   ownerLabel: string;
+  toolDefinitions: Json;
 };
 
 export type DashboardAccount = {

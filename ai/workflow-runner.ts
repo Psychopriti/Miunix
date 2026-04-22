@@ -1,4 +1,4 @@
-import { AgentExecutionError, runAgent } from "@/ai/agent-runner";
+import { AgentExecutionError } from "@/ai/agent-runner";
 import {
   findProfileById,
   findWorkflowWithSteps,
@@ -7,6 +7,7 @@ import {
   listPurchasedWorkflowIds,
 } from "@/lib/workflows";
 import { supabaseAdmin } from "@/lib/supabase";
+import { openai } from "@/lib/openai";
 
 import type { AgentProgressReporter } from "@/ai/execution-events";
 import type { Database, Json } from "@/types/database";
@@ -21,6 +22,8 @@ type WorkflowStepRunRow =
   Database["public"]["Tables"]["workflow_step_runs"]["Row"];
 
 type WorkflowContext = Record<string, Json>;
+
+const WORKFLOW_STEP_MODEL = "gpt-5-mini";
 
 export type WorkflowRunInput = {
   profileId: string;
@@ -317,6 +320,11 @@ function buildStepPrompt({
       "Construye sobre el contexto ya existente. No reinicies el analisis desde cero ni ignores lo que ya resolvieron pasos anteriores.",
       "Responde en espanol.",
       "No abras con encabezados Markdown tipo # o ##.",
+      "No uses asteriscos crudos para bullets, decoracion o enfasis visible.",
+      "Usa titulos limpios numerados o con dos puntos, por ejemplo: 1. Hallazgos principales o Recomendacion:",
+      "Usa negritas solo para etiquetas importantes, por ejemplo **Senal observada:** o **Recomendacion:**.",
+      "No envuelvas la respuesta en bloques de codigo.",
+      "Evita tablas salvo que el usuario las haya pedido.",
       "No repitas el nombre del paso como titulo en la primera linea.",
       "No devuelvas bloques innecesarios como 'Output', 'Final answer' o titulos duplicados.",
       "Prefiere una salida ejecutiva, directa y accionable.",
@@ -337,6 +345,11 @@ function buildStepPrompt({
     "Build on the existing workflow context. Do not restart from zero or ignore prior steps.",
     "Respond in English.",
     "Do not open with Markdown headings like # or ##.",
+    "Do not use raw asterisks for bullets, decoration, or visible emphasis.",
+    "Use clean numbered titles or colon labels, for example: 1. Key Findings or Recommendation:",
+    "Use bold only for important labels, for example **Observed evidence:** or **Recommendation:**.",
+    "Do not wrap the answer in code blocks.",
+    "Avoid tables unless the user explicitly requested them.",
     "Do not repeat the step title in the first line.",
     "Do not include noisy wrappers such as 'Output' or 'Final answer'.",
     "Keep the result executive, direct, and actionable.",
@@ -344,6 +357,50 @@ function buildStepPrompt({
     `Shared-context summary:\n${buildWorkflowContextBrief(stepContext)}`,
     `Full shared context JSON:\n${JSON.stringify(stepContext, null, 2)}`,
   ].join("\n\n");
+}
+
+async function runWorkflowStepAgent({
+  agent,
+  prompt,
+}: {
+  agent: AgentRow;
+  prompt: string;
+}) {
+  const systemBySlug: Record<string, string> = {
+    research:
+      "Eres un analista senior de estrategia. Trabaja rapido, con criterio ejecutivo, separando evidencia, inferencia y recomendacion. No hagas investigacion web en workflows; usa el contexto disponible y etiqueta supuestos.",
+    "lead-generation":
+      "Eres un estratega senior de revenue y lead generation. Produce ICP, scorecard, triggers y outreach accionable. No hagas sourcing web en workflows; si no hay empresas verificadas, entrega blueprint de cuentas objetivo.",
+    "marketing-content":
+      "Eres un estratega senior de growth y copywriter. Convierte research e ICPs en campana, mensajes, CTAs y testing. No generes imagenes dentro de workflows salvo que se pida explicitamente; prioriza salida textual usable.",
+  };
+  const systemPrompt =
+    systemBySlug[agent.slug] ??
+    agent.prompt_template ??
+    "Eres un agente de Miunix ejecutando un paso de workflow. Devuelve una salida ejecutiva, clara y accionable.";
+
+  const response = await openai.chat.completions.create({
+    model: WORKFLOW_STEP_MODEL,
+    messages: [
+      {
+        role: "system",
+        content: systemPrompt,
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+  });
+
+  return {
+    output: response.choices[0]?.message?.content?.trim() ?? "",
+    metadata: {
+      provider: "openai",
+      model: response.model,
+      workflowOptimized: true,
+    },
+  };
 }
 
 function buildStoredStepOutput({
@@ -502,7 +559,7 @@ function buildFinalOutput({
       text: extractTextFromJson(stepRun.output_data),
     });
 
-    return `${step.title}\n${text}`;
+    return `${step.position}. ${step.title}\n${text}`;
   });
 
   return {
@@ -690,14 +747,14 @@ export async function executeWorkflow({
       });
 
       try {
-        const runResult = await runAgent(
-          runnableAgent,
-          buildStepPrompt({
+        const runResult = await runWorkflowStepAgent({
+          agent: runnableAgent,
+          prompt: buildStepPrompt({
             workflow: workflowData.workflow,
             step,
             stepContext,
           }),
-        );
+        });
         const storedOutput = buildStoredStepOutput({
           step,
           output: runResult.output,

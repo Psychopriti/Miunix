@@ -46,14 +46,14 @@ export function getServerEnv(): ServerEnv {
 export function getOpenAiEnv(): OpenAiEnv {
   const openAiModelDefault =
     (process.env.OPENAI_MODEL_DEFAULT?.trim() as OpenAIModelId | undefined) ||
-    "gpt-4o-mini";
+    "gpt-5.4-mini";
 
   return {
     openAiApiKey: getRequiredEnv("OPENAI_API_KEY"),
     openAiModelDefault,
     openAiModelQuality:
       (process.env.OPENAI_MODEL_QUALITY?.trim() as OpenAIModelId | undefined) ||
-      openAiModelDefault,
+      "gpt-5",
   };
 }
 

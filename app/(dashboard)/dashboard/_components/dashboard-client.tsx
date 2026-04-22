@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import type { ReactNode } from "react";
 
+import { AgentArchitectureMini } from "@/components/marketing/agent-architecture-graph";
 import type {
   DashboardAgent,
   DashboardChatHistory,
@@ -247,7 +248,7 @@ function renderInlineMarkdown(text: string) {
       );
     }
 
-    return <span key={`${part}-${index}`}>{part}</span>;
+    return <span key={`${part}-${index}`}>{part.replace(/\*/g, "")}</span>;
   });
 }
 
@@ -299,6 +300,21 @@ function renderMarkdownContent(content: string) {
   for (const line of lines) {
     const trimmedLine = line.trim();
 
+    if (/^data:image\/(png|jpeg|webp);base64,/i.test(trimmedLine)) {
+      flushParagraph();
+      flushBullets();
+      blocks.push(
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={`image-${blocks.length}`}
+          src={trimmedLine}
+          alt="Imagen generada por el agente"
+          className="max-h-[28rem] w-full rounded-2xl border border-white/10 object-contain"
+        />,
+      );
+      continue;
+    }
+
     if (!trimmedLine) {
       flushParagraph();
       flushBullets();
@@ -308,6 +324,20 @@ function renderMarkdownContent(content: string) {
     if (trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ")) {
       flushParagraph();
       bulletLines.push(trimmedLine.slice(2).trim());
+      continue;
+    }
+
+    if (/^\d+\.\s/.test(trimmedLine) && trimmedLine.length < 90) {
+      flushParagraph();
+      flushBullets();
+      blocks.push(
+        <h3
+          key={`heading-${blocks.length}`}
+          className="mt-3 text-sm font-semibold uppercase tracking-[0.08em] text-[#f3ffc1]"
+        >
+          {renderInlineMarkdown(trimmedLine.replace(/^#{1,6}\s+/, ""))}
+        </h3>,
+      );
       continue;
     }
 
@@ -1410,7 +1440,7 @@ export function DashboardClient({
             </div>
           </aside>
 
-          <main className="flex flex-1 flex-col overflow-hidden">
+          <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {selectedAgent ? (
               <div className="flex items-center justify-between gap-3 border-b border-white/6 px-4 py-3">
                 {/* ── Mobile agent dropdown (hidden on md+) ── */}
@@ -1441,7 +1471,14 @@ export function DashboardClient({
                   </div>
                 </div>
 
-                <span className="text-xs text-white/35">
+                <div className="hidden min-w-0 flex-1 justify-center lg:flex">
+                  <AgentArchitectureMini
+                    agentSlug={selectedAgent.slug}
+                    toolDefinitions={selectedAgent.toolDefinitions}
+                  />
+                </div>
+
+                <span className="flex-shrink-0 text-xs text-white/35">
                   {currentMessages.length} mensajes
                 </span>
               </div>

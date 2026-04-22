@@ -77,12 +77,11 @@ function NavItem({
   return (
     <motion.button
       onClick={onClick}
-      whileHover={{ x: 2 }}
       whileTap={{ scale: 0.97 }}
-      className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
+      className={`group flex w-full items-center gap-3 rounded-[1rem] px-3 py-2.5 text-sm transition-all ${
         active
-          ? "bg-[#d7f209]/10 text-[#d7f209]"
-          : "text-white/50 hover:bg-white/5 hover:text-white/80"
+          ? "border border-[#d7f209]/20 bg-[#d7f209]/10 text-[#d7f209] shadow-[0_12px_30px_rgba(215,242,9,0.08)]"
+          : "border border-transparent text-white/50 hover:border-white/8 hover:bg-white/5 hover:text-white/80"
       }`}
     >
       <span
@@ -121,9 +120,7 @@ function StatCard({
   i: number;
 }) {
   return (
-    <motion.div {...stagger(i)} className="group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5">
-      {/* subtle gradient blob */}
-      <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-[#858BE3]/10 blur-2xl transition-all group-hover:bg-[#858BE3]/18" />
+    <motion.div {...stagger(i)} className="group relative overflow-hidden rounded-[1.1rem] border border-white/[0.08] bg-white/[0.035] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:border-white/14 hover:bg-white/[0.05]">
       <div className="flex items-start justify-between">
         <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/50">
           <Icon className="h-4 w-4" />
@@ -140,12 +137,12 @@ function StatCard({
 
 function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-6">
+    <div className="rounded-[1.4rem] border border-white/[0.08] bg-white/[0.03] p-5 shadow-[0_18px_55px_rgba(0,0,0,0.18)] sm:p-6">
       <div className="border-b border-white/[0.06] pb-4">
         <h2 className="font-heading text-lg font-semibold tracking-tight text-white">{title}</h2>
         {description && <p className="mt-1 text-sm text-white/45">{description}</p>}
       </div>
-      {children}
+      <div className="mt-5">{children}</div>
     </div>
   );
 }
@@ -154,7 +151,7 @@ function Section({ title, description, children }: { title: string; description?
 
 function FieldRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-1 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-1 rounded-[1rem] border border-white/[0.06] bg-black/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <span className="text-xs font-medium uppercase tracking-widest text-white/30">{label}</span>
       <span className="text-sm text-white/75">{value}</span>
     </div>
@@ -364,23 +361,48 @@ export function AccountPanel({ account, purchasedAgents, flashMessage, flashType
     .toUpperCase();
 
   return (
-    <div className="flex w-full flex-col gap-0 py-10">
+    <div className="flex w-full flex-col gap-6 py-8 sm:py-10">
       {/* Page header */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-        className="mb-8"
+        className="overflow-hidden rounded-[1.8rem] border border-white/10 bg-[linear-gradient(120deg,#d9ff00_0%,#dff0ab_34%,#8f90ff_100%)] p-5 text-black shadow-[0_22px_70px_rgba(0,0,0,0.28)] sm:p-7"
       >
-        <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-[#d7f209]/60">
+        <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr] lg:items-end">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/55">
           Mi Cuenta
-        </p>
-        <h1 className="mt-1.5 font-heading text-3xl font-semibold tracking-tight text-white">
+            </p>
+            <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end">
+              <div className="flex size-16 shrink-0 items-center justify-center rounded-[1.2rem] border border-black/10 bg-black/12 text-xl font-bold text-black shadow-[0_18px_40px_rgba(0,0,0,0.14)]">
+                {initials}
+              </div>
+              <div className="min-w-0">
+        <h1 className="font-heading text-4xl font-semibold leading-none tracking-normal text-black sm:text-5xl">
           {account.profileName}
         </h1>
-        <p className="mt-1 text-sm text-white/40">
+        <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-black/62">
           {account.email ?? "Sin correo"} · <span className="capitalize">{account.role}</span>
         </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[1.2rem] border border-black/10 bg-black/8 p-4 backdrop-blur">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/50">
+              Estado
+            </p>
+            <p className="mt-2 font-heading text-2xl font-semibold tracking-normal text-black">
+              {account.isPremium ? account.premiumPlanName ?? "MIUNIX+" : "Plan gratuito"}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-black/64">
+              {account.isPremium
+                ? `${account.privateAgentCount}/${account.premiumAgentLimit} agentes privados activos.`
+                : "Activa MIUNIX+ para desbloquear agentes privados y mayor capacidad."}
+            </p>
+          </div>
+        </div>
       </motion.div>
 
       {/* Flash message */}
@@ -391,7 +413,7 @@ export function AccountPanel({ account, purchasedAgents, flashMessage, flashType
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
+            className={`rounded-[1rem] border px-4 py-3 text-sm ${
               flashType === "error"
                 ? "border-red-400/20 bg-red-500/10 text-red-200"
                 : "border-[#d7f209]/20 bg-[#d7f209]/8 text-[#efffa8]"
@@ -403,17 +425,17 @@ export function AccountPanel({ account, purchasedAgents, flashMessage, flashType
       </AnimatePresence>
 
       {/* Body: sidebar + content */}
-      <div className="flex gap-6 lg:gap-8">
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[16rem_1fr] lg:gap-8">
         {/* ── Sidebar ── */}
         <motion.aside
           initial={{ opacity: 0, x: -16 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.4, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-          className="hidden w-52 shrink-0 lg:block"
+          className="hidden lg:block"
         >
           {/* Avatar card */}
-          <div className="mb-4 flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#858BE3] to-[#6366c3] text-sm font-bold text-white shadow-lg shadow-[#858BE3]/20">
+          <div className="mb-4 flex items-center gap-3 rounded-[1.2rem] border border-white/[0.08] bg-white/[0.035] px-3.5 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.16)]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#d7f209] text-sm font-bold text-black shadow-lg shadow-[#d7f209]/16">
               {initials}
             </div>
             <div className="min-w-0">
@@ -427,7 +449,7 @@ export function AccountPanel({ account, purchasedAgents, flashMessage, flashType
           </div>
 
           {/* Nav */}
-          <nav className="space-y-0.5">
+          <nav className="space-y-1 rounded-[1.3rem] border border-white/[0.08] bg-white/[0.03] p-2">
             {NAV.map((item) => (
               <NavItem
                 key={item.id}
@@ -439,10 +461,10 @@ export function AccountPanel({ account, purchasedAgents, flashMessage, flashType
           </nav>
 
           {/* Bottom link */}
-          <div className="mt-6 border-t border-white/[0.05] pt-4">
+          <div className="mt-4 rounded-[1.2rem] border border-white/[0.08] bg-white/[0.025] p-2">
             <Link
               href="/marketplace"
-              className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-white/35 transition hover:bg-white/5 hover:text-white/60"
+              className="flex items-center gap-2.5 rounded-[1rem] px-3 py-2.5 text-sm text-white/45 transition hover:bg-white/5 hover:text-white/75"
             >
               <Sparkles className="h-3.5 w-3.5" />
               Marketplace
@@ -455,13 +477,13 @@ export function AccountPanel({ account, purchasedAgents, flashMessage, flashType
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
-          className="lg:hidden mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-white/[0.06] bg-white/[0.02] p-1"
+          className="flex gap-1 overflow-x-auto rounded-[1.2rem] border border-white/[0.08] bg-white/[0.035] p-1 lg:hidden"
         >
           {NAV.map((item) => (
             <button
               key={item.id}
               onClick={() => setTab(item.id)}
-              className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition ${
+              className={`flex shrink-0 items-center gap-2 rounded-[0.95rem] px-3 py-2 text-xs font-medium transition ${
                 tab === item.id
                   ? "bg-[#d7f209]/10 text-[#d7f209]"
                   : "text-white/40 hover:text-white/70"
@@ -478,7 +500,7 @@ export function AccountPanel({ account, purchasedAgents, flashMessage, flashType
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
-          className="min-w-0 flex-1"
+          className="min-w-0"
         >
           <AnimatePresence mode="wait" initial={false}>
             {tab === "perfil" && <TabPerfil key="perfil" account={account} />}

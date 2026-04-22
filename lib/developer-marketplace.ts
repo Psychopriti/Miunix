@@ -1,7 +1,7 @@
 import { getAgentBySlug } from "@/lib/agents";
 import { supabaseAdmin } from "@/lib/supabase";
 
-import type { Database } from "@/types/database";
+import type { Database, Json } from "@/types/database";
 
 type AgentRow = Database["public"]["Tables"]["agents"]["Row"];
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
@@ -14,6 +14,8 @@ export type DeveloperMarketplaceAgent = {
   averageRating: number;
   totalReviews: number;
   variant: "lead-generation" | "marketing-content" | "research" | "developer";
+  ownerType: "platform" | "developer" | "user";
+  toolDefinitions: Json;
 };
 
 export type DeveloperMarketplaceProfile = {
@@ -89,6 +91,8 @@ function mapApprovedAgent(agent: AgentRow): DeveloperMarketplaceAgent {
       | "marketing-content"
       | "research"
       | "developer",
+    ownerType: agent.owner_type,
+    toolDefinitions: agent.tool_definitions,
   };
 }
 

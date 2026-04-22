@@ -98,6 +98,8 @@ export default async function AgentDetailPage({ params }: AgentDetailPageProps) 
             publishedAgent={{
               id: publishedAgent.id,
               total_reviews: publishedAgent.total_reviews,
+              owner_type: publishedAgent.owner_type,
+              tool_definitions: publishedAgent.tool_definitions,
             }}
             detailTitle={detailTitle}
             ownerLabel={ownerLabel}

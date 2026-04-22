@@ -5,8 +5,10 @@ import { Cable, ShieldCheck, Sparkles, TestTubeDiagonal } from "lucide-react";
 import { motion } from "motion/react";
 
 import { OpenApiImporter } from "./openapi-importer";
+import { AgentArchitectureGraph } from "@/components/marketing/agent-architecture-graph";
 import { PricingFields } from "./pricing-fields";
 import { SUPPORTED_DEV_MODELS } from "@/lib/dev-tools";
+import type { Json } from "@/types/database";
 
 // ─── Static data (no serializable como prop) ────────────────────────────────
 
@@ -46,6 +48,7 @@ type AgentItem = {
   review_status: string;
   last_test_run_status: string;
   toolCount: number;
+  tool_definitions: Json;
   model: string;
   pricing_type: string;
   price: string | null;
@@ -367,6 +370,15 @@ export function DevCenterClient({
                           <span>
                             {agent.pricing_type === "free" ? "gratis" : `$${agent.price}`}
                           </span>
+                        </div>
+                        <div className="mt-4">
+                          <AgentArchitectureGraph
+                            agentSlug={agent.name}
+                            agentName={agent.name}
+                            ownerType="developer"
+                            toolDefinitions={agent.tool_definitions}
+                            compact
+                          />
                         </div>
                       </div>
 

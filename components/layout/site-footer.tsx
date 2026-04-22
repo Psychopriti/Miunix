@@ -3,6 +3,7 @@ import Link from "next/link";
 const footerLinks = [
   { label: "Inicio",       href: "/" },
   { label: "Workflows",    href: "/workflows" },
+  { label: "Team",         href: "/team" },
   { label: "Mis Agentes",  href: "/dashboard" },
   { label: "Mi Cuenta",    href: "/mi-cuenta" },
 ];

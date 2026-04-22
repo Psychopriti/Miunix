@@ -2,6 +2,8 @@ import type { Json } from "@/types/database";
 import type { OpenAIModelId } from "@/types/openai";
 
 export const SUPPORTED_DEV_MODELS: OpenAIModelId[] = [
+  "gpt-5.4",
+  "gpt-5.4-mini",
   "gpt-5",
   "gpt-5-mini",
   "gpt-4o-mini",
@@ -10,6 +12,8 @@ export const SUPPORTED_DEV_MODELS: OpenAIModelId[] = [
 ];
 
 export const DEV_MODEL_BASE_COST_USD: Partial<Record<OpenAIModelId, number>> = {
+  "gpt-5.4": 25,
+  "gpt-5.4-mini": 10,
   "gpt-5": 19,
   "gpt-5-mini": 7,
   "gpt-4o-mini": 5,

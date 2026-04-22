@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  Bot,
   CheckCircle2,
   CircleDashed,
+  FileText,
+  MessageSquare,
   Play,
+  Share2,
   Sparkles,
 } from "lucide-react";
 
@@ -73,6 +78,207 @@ function formatDateTime(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function cleanFormattedLine(line: string) {
+  return line
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/^\*\s+/, "- ")
+    .replace(/^[-*]{3,}$/, "")
+    .trim();
+}
+
+function renderInlineContent(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+
+  return parts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return (
+        <strong key={`${part}-${index}`} className="font-semibold text-white">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    return <span key={`${part}-${index}`}>{part.replace(/\*/g, "")}</span>;
+  });
+}
+
+function renderFormattedOutput(content: string) {
+  const blocks: ReactNode[] = [];
+  let paragraphLines: string[] = [];
+  let bulletLines: string[] = [];
+
+  const flushParagraph = () => {
+    const paragraph = paragraphLines.join(" ").trim();
+    paragraphLines = [];
+
+    if (!paragraph) {
+      return;
+    }
+
+    blocks.push(
+      <p key={`paragraph-${blocks.length}`} className="text-sm leading-7 text-white/72">
+        {renderInlineContent(paragraph)}
+      </p>,
+    );
+  };
+
+  const flushBullets = () => {
+    const bullets = bulletLines.map((line) => line.trim()).filter(Boolean);
+    bulletLines = [];
+
+    if (bullets.length === 0) {
+      return;
+    }
+
+    blocks.push(
+      <ul key={`bullets-${blocks.length}`} className="space-y-2 pl-4">
+        {bullets.map((line, index) => (
+          <li
+            key={`${line}-${index}`}
+            className="list-disc text-sm leading-6 text-white/68 marker:text-[#d7f205]/70"
+          >
+            {renderInlineContent(line)}
+          </li>
+        ))}
+      </ul>,
+    );
+  };
+
+  for (const rawLine of content.replace(/\r\n/g, "\n").split("\n")) {
+    const line = cleanFormattedLine(rawLine);
+
+    if (!line) {
+      flushParagraph();
+      flushBullets();
+      continue;
+    }
+
+    if (/^[-]\s+/.test(line)) {
+      flushParagraph();
+      bulletLines.push(line.replace(/^[-]\s+/, ""));
+      continue;
+    }
+
+    if (/^\d+\.\s+\S/.test(line) && line.length < 90) {
+      flushParagraph();
+      flushBullets();
+      blocks.push(
+        <h4
+          key={`heading-${blocks.length}`}
+          className="pt-2 text-sm font-semibold uppercase tracking-[0.08em] text-[#f3ffc1]"
+        >
+          {renderInlineContent(line)}
+        </h4>,
+      );
+      continue;
+    }
+
+    if (/^[A-ZÁÉÍÓÚÑa-záéíóúñ][^.!?]{2,72}:$/.test(line)) {
+      flushParagraph();
+      flushBullets();
+      blocks.push(
+        <h4
+          key={`heading-${blocks.length}`}
+          className="pt-2 text-sm font-semibold text-white"
+        >
+          {renderInlineContent(line.replace(/:$/, ""))}
+        </h4>,
+      );
+      continue;
+    }
+
+    flushBullets();
+    paragraphLines.push(line);
+  }
+
+  flushParagraph();
+  flushBullets();
+
+  return <div className="space-y-3">{blocks}</div>;
+}
+
+function getAgentTone(agentSlug: string) {
+  if (agentSlug === "lead-generation") {
+    return {
+      label: "Lead agent",
+      color: "border-cyan-400/25 bg-cyan-400/10 text-cyan-100",
+      dot: "bg-cyan-300",
+    };
+  }
+
+  if (agentSlug === "marketing-content") {
+    return {
+      label: "Marketing agent",
+      color: "border-amber-300/25 bg-amber-300/10 text-amber-100",
+      dot: "bg-amber-200",
+    };
+  }
+
+  if (agentSlug === "research") {
+    return {
+      label: "Research agent",
+      color: "border-[#8f90ff]/30 bg-[#8f90ff]/12 text-[#dfe0ff]",
+      dot: "bg-[#8f90ff]",
+    };
+  }
+
+  return {
+    label: "Agent",
+    color: "border-white/12 bg-white/[0.05] text-white/75",
+    dot: "bg-white/45",
+  };
+}
+
+function WorkflowDataFlow({ workflow }: { workflow: DashboardWorkflow }) {
+  return (
+    <div className="rounded-[1.2rem] border border-white/10 bg-[#0b0d10] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[0.68rem] uppercase tracking-[0.2em] text-[#d7f205]">
+            Flujo de contexto
+          </p>
+          <p className="mt-2 text-sm text-white/72">
+            Cada agente recibe el resultado anterior y agrega su parte al contexto compartido.
+          </p>
+        </div>
+        <Share2 className="size-4 text-white/35" />
+      </div>
+
+      <div className="mt-5 grid gap-3 lg:grid-cols-[repeat(auto-fit,minmax(160px,1fr))]">
+        {workflow.steps.map((step, index) => {
+          const tone = getAgentTone(step.agentSlug);
+
+          return (
+            <div key={step.id} className="relative">
+              <div className={`min-h-[8.5rem] rounded-2xl border p-4 ${tone.color}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex size-9 items-center justify-center rounded-xl border border-white/10 bg-black/20">
+                    <Bot className="size-4" />
+                  </span>
+                  <span className="text-[0.62rem] uppercase tracking-[0.16em] opacity-70">
+                    Paso {step.position}
+                  </span>
+                </div>
+                <h3 className="mt-4 text-sm font-medium text-white">{step.title}</h3>
+                <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-white/42">
+                  {tone.label}
+                </p>
+              </div>
+
+              {index < workflow.steps.length - 1 ? (
+                <div className="absolute -right-4 top-1/2 z-10 hidden -translate-y-1/2 items-center lg:flex">
+                  <span className="h-px w-5 bg-[#d7f205]/30" />
+                  <ArrowRight className="size-4 text-[#d7f205]/75" />
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function DashboardWorkflowMode({
@@ -337,41 +543,16 @@ export function DashboardWorkflowMode({
 
             <div className="grid gap-6 px-5 py-5 2xl:grid-cols-[1.05fr_0.95fr]">
               <section className="grid gap-5">
-                <div className="rounded-[1.6rem] border border-white/10 bg-white/[0.03] p-5">
-                  <p className="text-[0.72rem] uppercase tracking-[0.18em] text-white/38">
-                    Pipeline
-                  </p>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {selectedWorkflow.steps.map((step, index) => (
-                      <div key={step.id} className="flex items-center gap-2">
-                        <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[0.72rem] text-white/82">
-                          {step.position}. {step.title}
-                        </span>
-                        {index < selectedWorkflow.steps.length - 1 ? (
-                          <ArrowRight className="size-3.5 text-white/30" />
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-5 rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
-                    <p className="text-[0.72rem] uppercase tracking-[0.18em] text-white/40">
-                      Entregable
-                    </p>
-                    <p className="mt-2 text-sm leading-7 text-white/75">
-                      {selectedWorkflow.deliverable}
-                    </p>
-                  </div>
-                </div>
+                <WorkflowDataFlow workflow={selectedWorkflow} />
 
                 <div className="rounded-[1.6rem] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[0.72rem] uppercase tracking-[0.18em] text-white/38">
-                        Ejecutar workflow
+                        Sala de ejecucion
                       </p>
                       <p className="mt-2 text-sm leading-7 text-white/58">
-                        Define el objetivo y deja que el equipo de agentes avance en secuencia.
+                        Escribe el brief como mensaje inicial y ajusta los datos clave del contexto.
                       </p>
                     </div>
                     <button
@@ -385,9 +566,13 @@ export function DashboardWorkflowMode({
                     </button>
                   </div>
 
-                  <div className="mt-5 grid gap-3">
-                    <label className="grid gap-2 text-sm text-white/70">
-                      Objetivo de negocio
+                  <div className="mt-5 rounded-[1.2rem] border border-white/8 bg-[#0b0b0b] p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="flex size-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#d7f205] text-black">
+                        <MessageSquare className="size-4" />
+                      </span>
+                      <label className="grid flex-1 gap-2 text-sm text-white/70">
+                        Mensaje para el equipo
                       <textarea
                         value={formState.business_goal}
                         onChange={(event) =>
@@ -397,10 +582,14 @@ export function DashboardWorkflowMode({
                           }))
                         }
                         className="min-h-28 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-[#d7f205]/35"
+                        placeholder="Ej. Quiero lanzar una oferta de automatizacion para clinicas privadas en Managua..."
                       />
-                    </label>
-                    <label className="grid gap-2 text-sm text-white/70">
-                      Oferta
+                      </label>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-white/38">
+                        Oferta
                       <input
                         value={formState.offer}
                         onChange={(event) =>
@@ -409,11 +598,11 @@ export function DashboardWorkflowMode({
                             offer: event.target.value,
                           }))
                         }
-                        className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-[#d7f205]/35"
+                        className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm normal-case tracking-normal text-white outline-none transition focus:border-[#d7f205]/35"
+                        placeholder="Producto o servicio"
                       />
-                    </label>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <label className="grid gap-2 text-sm text-white/70">
+                      </label>
+                      <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-white/38">
                         Geografia
                         <input
                           value={formState.geography}
@@ -423,10 +612,11 @@ export function DashboardWorkflowMode({
                               geography: event.target.value,
                             }))
                           }
-                          className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-[#d7f205]/35"
+                          className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm normal-case tracking-normal text-white outline-none transition focus:border-[#d7f205]/35"
+                          placeholder="Pais, ciudad o region"
                         />
                       </label>
-                      <label className="grid gap-2 text-sm text-white/70">
+                      <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-white/38">
                         Segmento objetivo
                         <input
                           value={formState.target_segment}
@@ -436,9 +626,17 @@ export function DashboardWorkflowMode({
                               target_segment: event.target.value,
                             }))
                           }
-                          className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-[#d7f205]/35"
+                          className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm normal-case tracking-normal text-white outline-none transition focus:border-[#d7f205]/35"
+                          placeholder="Buyer o nicho"
                         />
                       </label>
+                    </div>
+
+                    <div className="mt-4 flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                      <FileText className="mt-0.5 size-4 flex-shrink-0 text-[#d7f205]" />
+                      <p className="text-sm leading-6 text-white/62">
+                        Entregable: {selectedWorkflow.deliverable}
+                      </p>
                     </div>
                   </div>
 
@@ -455,17 +653,31 @@ export function DashboardWorkflowMode({
                         </div>
 
                         <div className="mt-4 grid gap-3">
-                          {runState.stepRuns.map((stepRun) => (
+                          {runState.stepRuns.map((stepRun, index) => {
+                            const tone = getAgentTone(stepRun.agentSlug);
+
+                            return (
                             <div
                               key={stepRun.id}
-                              className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4"
+                              className="relative rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4"
                             >
+                              {index > 0 ? (
+                                <div className="absolute -top-3 left-8 flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-white/28">
+                                  <span className="h-3 w-px bg-[#d7f205]/30" />
+                                  contexto recibido
+                                </div>
+                              ) : null}
                               <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div>
+                                <div className="flex items-center gap-3">
+                                  <span className={`flex size-9 items-center justify-center rounded-xl border ${tone.color}`}>
+                                    <Bot className="size-4" />
+                                  </span>
+                                  <div>
                                   <p className="text-sm text-white">{stepRun.title}</p>
                                   <p className="mt-1 text-xs uppercase tracking-[0.16em] text-white/42">
                                     {stepRun.agentSlug}
                                   </p>
+                                  </div>
                                 </div>
                                 <span
                                   className={`rounded-full border px-3 py-1 text-[0.65rem] uppercase tracking-[0.18em] ${getStatusPillClass(stepRun.status)}`}
@@ -474,9 +686,9 @@ export function DashboardWorkflowMode({
                                 </span>
                               </div>
                               {stepRun.outputText ? (
-                                <pre className="mt-4 overflow-x-auto whitespace-pre-wrap text-xs leading-6 text-white/68">
-                                  {stepRun.outputText}
-                                </pre>
+                                <div className="mt-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
+                                  {renderFormattedOutput(stepRun.outputText)}
+                                </div>
                               ) : stepRun.status === "running" ? (
                                 <div className="mt-4 inline-flex items-center gap-2 text-xs text-cyan-200/80">
                                   <CircleDashed className="size-3.5 animate-spin" />
@@ -484,7 +696,8 @@ export function DashboardWorkflowMode({
                                 </div>
                               ) : null}
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
 
                         {runState.error ? (
@@ -500,9 +713,9 @@ export function DashboardWorkflowMode({
                             <CheckCircle2 className="size-4 text-emerald-300" />
                             Resultado final consolidado
                           </div>
-                          <pre className="mt-4 overflow-x-auto whitespace-pre-wrap text-xs leading-6 text-white/74">
-                            {runState.finalOutputText}
-                          </pre>
+                          <div className="mt-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
+                            {renderFormattedOutput(runState.finalOutputText)}
+                          </div>
                         </div>
                       ) : null}
                     </div>
@@ -541,9 +754,9 @@ export function DashboardWorkflowMode({
                           </div>
 
                           {execution.finalOutputText ? (
-                            <pre className="mt-4 max-h-64 overflow-x-auto overflow-y-auto whitespace-pre-wrap text-xs leading-6 text-white/66">
-                              {execution.finalOutputText}
-                            </pre>
+                            <div className="mt-4 max-h-64 overflow-y-auto rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
+                              {renderFormattedOutput(execution.finalOutputText)}
+                            </div>
                           ) : null}
                         </div>
                       ))

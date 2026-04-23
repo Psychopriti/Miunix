@@ -57,17 +57,52 @@ function normalizeMessages(value: unknown) {
     });
 }
 
-async function getPremiumAccess() {
-  const supabase = await createServerSupabaseClient();
-  const userResult = await supabase.auth.getUser();
+function buildFallbackMessage(latestUserMessage: string) {
+  const normalized = latestUserMessage.toLowerCase();
 
-  if (userResult.error || !userResult.data.user) {
-    return false;
+  if (/(dev|developer|desarrollador|publicar|vender|subir|api|herramienta)/i.test(normalized)) {
+    return "Si eres developer y quieres publicar un agente, el mejor camino es [Developers](/developers). Ahi puedes preparar tu agente para venderlo o integrarlo en Miunix. Siguiente paso: entra a Developers y revisa como presentar tu agente, sus herramientas y el caso de uso que resuelve.";
   }
 
-  const profile = await ensureProfileForUser(userResult.data.user);
+  if (/(venta|ventas|lead|prospect|cliente|outreach|b2b|crm)/i.test(normalized)) {
+    return "Para ventas y prospeccion te conviene [Lead Generation](/marketplace/lead-generation). Te ayuda a definir ICP, detectar dolores, priorizar prospectos y crear mensajes de outreach listos para usar.";
+  }
 
-  return isPremiumUser(profile);
+  if (/(marketing|contenido|copy|campana|campaña|email|anuncio|post|redes)/i.test(normalized)) {
+    return "Para campanas, anuncios, emails o posts te conviene [Marketing Content](/marketplace/marketing-content). Convierte un brief corto en concepto, titulares, copy, CTAs e ideas de contenido.";
+  }
+
+  if (/(research|investig|analisis|análisis|competidor|mercado|tendencia|brief)/i.test(normalized)) {
+    return "Para investigar mercados, competidores o tendencias te conviene [Research](/marketplace/research). Te devuelve un analisis estructurado con insights, oportunidades, riesgos y recomendacion.";
+  }
+
+  if (/(workflow|flujo|equipo|secuencia|automatizar|automatizacion|automatización)/i.test(normalized)) {
+    return "Si quieres automatizar un proceso con varios pasos, revisa [Workflows](/workflows). Los workflows corren equipos de agentes en secuencia para convertir una tarea grande en un flujo mas ordenado.";
+  }
+
+  if (/(miunix|que es|qué es|plataforma|hola|inicio)/i.test(normalized)) {
+    return "Miunix es una plataforma para comprar, crear y ejecutar agentes de IA sin codigo. Puedes empezar con agentes listos en [Marketplace](/marketplace): Lead Generation para ventas, Marketing Content para campanas y Research para analisis. Si necesitas un agente privado, revisa [MIUNIX+](/miunix-plus).";
+  }
+
+  return "Miunix te ayuda a usar agentes de IA listos o crear soluciones privadas. Para explorar agentes entra a [Marketplace](/marketplace); si quieres publicar o vender un agente, ve a [Developers](/developers); y si necesitas algo personalizado, revisa [MIUNIX+](/miunix-plus).";
+}
+
+async function getPremiumAccess() {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const userResult = await supabase.auth.getUser();
+
+    if (userResult.error || !userResult.data.user) {
+      return false;
+    }
+
+    const profile = await ensureProfileForUser(userResult.data.user);
+
+    return isPremiumUser(profile);
+  } catch (error) {
+    console.error("Miunix assistant premium check failed", error);
+    return false;
+  }
 }
 
 export async function POST(request: Request) {
@@ -113,10 +148,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = await openai.chat.completions.create({
-    model: OPENAI_DEFAULT_MODEL,
-    max_tokens: 520,
-    messages: [
+  let assistantMessage = buildFallbackMessage(latestMessage.content);
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: OPENAI_DEFAULT_MODEL,
+      messages: [
       {
         role: "system",
         content: [
@@ -148,8 +185,14 @@ export async function POST(request: Request) {
         ].join("\n"),
       },
       ...messages,
-    ],
-  });
+      ],
+    });
+
+    assistantMessage =
+      response.choices[0]?.message?.content?.trim() ?? assistantMessage;
+  } catch (error) {
+    console.error("Miunix assistant OpenAI request failed", error);
+  }
 
   const nextPromptCount = hasPremiumAccess ? usedPrompts : usedPrompts + 1;
   const remainingPrompts = hasPremiumAccess
@@ -157,9 +200,7 @@ export async function POST(request: Request) {
     : Math.max(FREE_PROMPT_LIMIT - nextPromptCount, 0);
   const payload = {
     success: true,
-    message:
-      response.choices[0]?.message?.content?.trim() ??
-      "Puedo ayudarte a elegir un agente, un workflow o MIUNIX+ segun tu necesidad.",
+    message: assistantMessage,
     remainingPrompts,
     hasPremiumAccess,
   };

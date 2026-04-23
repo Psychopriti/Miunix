@@ -8,7 +8,6 @@ import {
   Loader2,
   MessageCircle,
   Send,
-  Sparkles,
   X,
   Zap,
 } from "lucide-react";
@@ -76,6 +75,32 @@ function buildRequest(messages: ChatMessage[], next: string) {
       .map(({ role, content }) => ({ role, content })),
     { role: "user" as const, content: next },
   ];
+}
+
+async function readAssistantPayload(res: Response) {
+  const text = await res.text();
+
+  if (!text.trim()) {
+    return {
+      success: false,
+      error: "El asistente no devolvio respuesta. Intenta otra vez.",
+    };
+  }
+
+  try {
+    return JSON.parse(text) as {
+      success: boolean;
+      message?: string;
+      error?: string;
+      remainingPrompts?: number | null;
+      requiresUpgrade?: boolean;
+    };
+  } catch {
+    return {
+      success: false,
+      error: "El asistente tuvo un problema temporal, pero MIUNIX sigue activo.",
+    };
+  }
 }
 
 // ─── Avatar component ─────────────────────────────────────────────────────────
@@ -222,13 +247,7 @@ export function MiunixAssistantBubble() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: buildRequest(lastMessagesForRequest, text) }),
       });
-      const payload = (await res.json()) as {
-        success: boolean;
-        message?: string;
-        error?: string;
-        remainingPrompts?: number | null;
-        requiresUpgrade?: boolean;
-      };
+      const payload = await readAssistantPayload(res);
 
       if (payload.requiresUpgrade) {
         setRequiresUpgrade(true);

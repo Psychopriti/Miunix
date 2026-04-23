@@ -45,7 +45,9 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       className={`h-full antialiased ${spaceGrotesk.variable} ${roboto.variable}`}
     >
-      <body className="flex min-h-full flex-col font-sans">{children}</body>
+      <body className="flex min-h-full flex-col font-sans" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }
